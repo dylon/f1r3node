@@ -59,3 +59,7 @@ cc = "1.0"
 [[bench]]
 name = "par_normalization"
 harness = false
+
+[[bench]]
+name = "sub_pars_benchmark"
+harness = false
