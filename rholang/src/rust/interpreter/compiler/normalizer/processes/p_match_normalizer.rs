@@ -5,6 +5,7 @@ use crate::rust::interpreter::util::filter_and_adjust_bitset;
 use models::rhoapi::{Match, MatchCase, Par};
 use models::rust::utils::union;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use rholang_parser::ast::{AnnProc, Case};
 
@@ -40,7 +41,7 @@ pub fn normalize_p_match<'ast>(
             pattern,
             ProcVisitInputs {
                 par: Par::default(),
-                bound_map_chain: input.bound_map_chain.push(),
+                bound_map_chain: Rc::new((*input.bound_map_chain).push()),
                 free_map: FreeMap::default(),
             },
             env,
@@ -56,7 +57,7 @@ pub fn normalize_p_match<'ast>(
             case_body,
             ProcVisitInputs {
                 par: Par::default(),
-                bound_map_chain: case_env.clone(),
+                bound_map_chain: Rc::new(case_env.clone()),
                 free_map: init_acc.1.clone(),
             },
             env,
@@ -168,13 +169,14 @@ mod tests {
         use crate::rust::interpreter::test_utils::par_builder_util::ParBuilderUtil;
         use rholang_parser::ast::{Case, Var};
         use rholang_parser::SourcePos;
+        use std::rc::Rc;
 
         let (mut inputs, env) = proc_visit_inputs_and_env();
-        inputs.bound_map_chain = inputs.bound_map_chain.put_pos((
+        inputs.bound_map_chain = Rc::new(inputs.bound_map_chain.put_pos((
             "x".to_string(),
             VarSort::NameSort,
             SourcePos { line: 0, col: 0 },
-        ));
+        )));
 
         let parser = rholang_parser::RholangParser::new();
 

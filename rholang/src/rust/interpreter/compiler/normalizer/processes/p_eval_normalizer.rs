@@ -17,7 +17,7 @@ pub fn normalize_p_eval<'ast>(
     let name_match_result = normalize_name(
         eval_name,
         NameVisitInputs {
-            bound_map_chain: input.bound_map_chain.clone(),
+            bound_map_chain: (*input.bound_map_chain).clone(),
             free_map: input.free_map.clone(),
         },
         env,
@@ -36,6 +36,7 @@ pub fn normalize_p_eval<'ast>(
 #[cfg(test)]
 mod tests {
     use models::rust::utils::new_boundvar_expr;
+    use std::rc::Rc;
 
     use crate::rust::interpreter::{
         compiler::normalize::VarSort, test_utils::utils::proc_visit_inputs_and_env,
@@ -58,11 +59,11 @@ mod tests {
         let eval_name = create_name_id("x");
         let parser = rholang_parser::RholangParser::new();
         let (mut inputs, env) = proc_visit_inputs_and_env();
-        inputs.bound_map_chain = inputs.bound_map_chain.put_pos((
+        inputs.bound_map_chain = Rc::new(inputs.bound_map_chain.put_pos((
             "x".to_string(),
             VarSort::NameSort,
             SourcePos { line: 0, col: 0 },
-        ));
+        )));
 
         let result = normalize_p_eval(&eval_name, inputs.clone(), &env, &parser);
         assert!(result.is_ok());
@@ -78,11 +79,11 @@ mod tests {
         use crate::rust::interpreter::test_utils::par_builder_util::ParBuilderUtil;
 
         let (mut inputs, env) = proc_visit_inputs_and_env();
-        inputs.bound_map_chain = inputs.bound_map_chain.put_pos((
+        inputs.bound_map_chain = Rc::new(inputs.bound_map_chain.put_pos((
             "x".to_string(),
             VarSort::ProcSort,
             SourcePos { line: 0, col: 0 },
-        ));
+        )));
 
         let parser = rholang_parser::RholangParser::new();
 

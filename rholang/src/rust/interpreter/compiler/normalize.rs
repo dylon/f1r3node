@@ -1,4 +1,5 @@
 use super::bound_map_chain::BoundMapChain;
+use std::rc::Rc;
 use super::free_map::FreeMap;
 use crate::rust::interpreter::compiler::normalizer::processes::{
     p_ground_normalizer::normalize_p_ground, p_simple_type_normalizer::normalize_simple_type,
@@ -28,7 +29,7 @@ pub enum VarSort {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProcVisitInputs {
     pub par: Par,
-    pub bound_map_chain: BoundMapChain<VarSort>,
+    pub bound_map_chain: Rc<BoundMapChain<VarSort>>,
     pub free_map: FreeMap<VarSort>,
 }
 
@@ -36,7 +37,7 @@ impl ProcVisitInputs {
     pub fn new() -> Self {
         ProcVisitInputs {
             par: Par::default(),
-            bound_map_chain: BoundMapChain::new(),
+            bound_map_chain: Rc::new(BoundMapChain::new()),
             free_map: FreeMap::new(),
         }
     }
@@ -83,6 +84,17 @@ pub struct CollectVisitOutputs {
  * Rholang normalizer entry point
  */
 pub fn normalize_ann_proc<'ast>(
+    proc: &AnnProc<'ast>,
+    input: ProcVisitInputs,
+    _env: &HashMap<String, Par>,
+    parser: &'ast RholangParser<'ast>,
+) -> Result<ProcVisitOutputs, InterpreterError> {
+    stacker::maybe_grow(32 * 1024, 1024 * 1024, || {
+        normalize_ann_proc_impl(proc, input, _env, parser)
+    })
+}
+
+fn normalize_ann_proc_impl<'ast>(
     proc: &AnnProc<'ast>,
     input: ProcVisitInputs,
     _env: &HashMap<String, Par>,

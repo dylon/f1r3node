@@ -9,6 +9,7 @@ use crate::rust::interpreter::util::prepend_expr;
 use models::rhoapi::{expr, var, EVar, Expr, Par, Var as model_var};
 use models::rust::utils::union;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use rholang_parser::ast::{Name, Names, Var};
 
@@ -133,7 +134,7 @@ pub fn normalize_name<'ast>(
                 ann_proc,
                 ProcVisitInputs {
                     par: Par::default(),
-                    bound_map_chain: input.bound_map_chain.clone(),
+                    bound_map_chain: Rc::new(input.bound_map_chain.clone()),
                     free_map: input.free_map.clone(),
                 },
                 env,

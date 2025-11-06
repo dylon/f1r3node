@@ -114,6 +114,7 @@ mod tests {
     use crate::rust::interpreter::compiler::exports::{BoundMapChain, FreeMap};
     use crate::rust::interpreter::compiler::normalize::VarSort;
     use models::rhoapi::Par;
+    use std::rc::Rc;
 
     #[test]
     fn p_send_sync_should_normalize_a_basic_send_sync() {
@@ -123,7 +124,7 @@ mod tests {
         fn inputs() -> ProcVisitInputs {
             ProcVisitInputs {
                 par: Par::default(),
-                bound_map_chain: BoundMapChain::new(),
+                bound_map_chain: Rc::new(BoundMapChain::new()),
                 free_map: FreeMap::<VarSort>::new(),
             }
         }
