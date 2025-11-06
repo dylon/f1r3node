@@ -3,8 +3,26 @@ use models::rhoapi::Par;
 
 use super::par_count::ParCount;
 
+#[path = "lazy_sub_pars/mod.rs"]
+mod lazy_sub_pars;
+pub use lazy_sub_pars::{SubParsIterator, SubsetIterator};
+
 // See rholang/src/main/scala/coop/rchain/rholang/interpreter/matcher/ParSpatialMatcherUtils.scala - subPars
-pub fn sub_pars(
+pub fn sub_pars<'a>(
+    par: &'a Par,
+    min: &ParCount,
+    max: &ParCount,
+    min_prune: &ParCount,
+    max_prune: &ParCount,
+) -> impl Iterator<Item = (Par, Par)> + 'a {
+    // Use new lazy iterator implementation - O(1) memory instead of O(2^n)
+    SubParsIterator::new(par, min, max, min_prune, max_prune)
+}
+
+// Legacy eager implementation - DEPRECATED
+// Kept for reference and potential fallback testing
+#[allow(dead_code)]
+fn sub_pars_eager(
     par: &Par,
     min: &ParCount,
     max: &ParCount,
