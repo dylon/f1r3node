@@ -19,7 +19,6 @@ fn flatten_par<'ast>(root: &'ast AnnProc<'ast>) -> Vec<&'ast AnnProc<'ast>> {
             _ => result.push(current),
         }
     }
-
     result
 }
 
@@ -102,6 +101,8 @@ mod tests {
 
     #[test]
     fn p_par_should_compile_both_branches_with_the_same_environment() {
+        use std::rc::Rc;
+
         let parser = rholang_parser::RholangParser::new();
 
         let left_proc = ParBuilderUtil::create_ast_proc_var_from_var(
@@ -121,11 +122,11 @@ mod tests {
         let par_proc = ParBuilderUtil::create_ast_par(left_proc, right_proc, &parser);
 
         let (mut inputs, env) = proc_visit_inputs_and_env();
-        inputs.bound_map_chain = inputs.bound_map_chain.put_pos((
+        inputs.bound_map_chain = Rc::new(inputs.bound_map_chain.put_pos((
             "x".to_string(),
             VarSort::ProcSort,
             SourcePos { line: 0, col: 0 },
-        ));
+        )));
 
         let result = normalize_ann_proc(&par_proc, inputs, &env, &parser);
 

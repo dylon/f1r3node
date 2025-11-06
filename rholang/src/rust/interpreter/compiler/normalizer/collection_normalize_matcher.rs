@@ -15,6 +15,7 @@ use models::rust::sorted_par_hash_set::SortedParHashSet;
 use models::rust::sorted_par_map::SortedParMap;
 use models::rust::utils::union;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::result::Result;
 
 use rholang_parser::ast::{AnnProc, Collection, KeyValuePair};
@@ -44,7 +45,7 @@ pub fn normalize_collection<'ast>(
                 element,
                 ProcVisitInputs {
                     par: Par::default(),
-                    bound_map_chain: input.bound_map_chain.clone(),
+                    bound_map_chain: Rc::new(input.bound_map_chain.clone()),
                     free_map: result_known_free.clone(),
                 },
                 env,
@@ -83,7 +84,7 @@ pub fn normalize_collection<'ast>(
                 &key_value_pair.0,
                 ProcVisitInputs {
                     par: Par::default(),
-                    bound_map_chain: input.bound_map_chain.clone(),
+                    bound_map_chain: Rc::new(input.bound_map_chain.clone()),
                     free_map: result_known_free.clone(),
                 },
                 env,
@@ -94,7 +95,7 @@ pub fn normalize_collection<'ast>(
                 &key_value_pair.1,
                 ProcVisitInputs {
                     par: Par::default(),
-                    bound_map_chain: input.bound_map_chain.clone(),
+                    bound_map_chain: Rc::new(input.bound_map_chain.clone()),
                     free_map: key_result.free_map.clone(),
                 },
                 env,

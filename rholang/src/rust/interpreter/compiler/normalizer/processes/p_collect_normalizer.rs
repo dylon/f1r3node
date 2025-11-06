@@ -18,7 +18,7 @@ pub fn normalize_p_collect<'ast>(
     let collection_result = normalize_collection(
         proc,
         CollectVisitInputs {
-            bound_map_chain: input.bound_map_chain.clone(),
+            bound_map_chain: (*input.bound_map_chain).clone(),
             free_map: input.free_map.clone(),
         },
         env,

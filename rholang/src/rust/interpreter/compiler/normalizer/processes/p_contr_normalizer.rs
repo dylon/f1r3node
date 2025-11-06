@@ -8,6 +8,7 @@ use crate::rust::interpreter::compiler::normalizer::remainder_normalizer_matcher
 use crate::rust::interpreter::errors::InterpreterError;
 use crate::rust::interpreter::matcher::has_locally_free::HasLocallyFree;
 use crate::rust::interpreter::util::filter_and_adjust_bitset;
+use std::rc::Rc;
 use models::rhoapi::{Par, Receive, ReceiveBind};
 use models::rust::utils::union;
 use std::collections::HashMap;
@@ -25,7 +26,7 @@ pub fn normalize_p_contr<'ast>(
     let name_match_result = normalize_name(
         name,
         NameVisitInputs {
-            bound_map_chain: input.bound_map_chain.clone(),
+            bound_map_chain: (*input.bound_map_chain).clone(),
             free_map: input.free_map.clone(),
         },
         env,
@@ -68,7 +69,7 @@ pub fn normalize_p_contr<'ast>(
         body,
         ProcVisitInputs {
             par: Par::default(),
-            bound_map_chain: new_enw,
+            bound_map_chain: Rc::new(new_enw),
             free_map: name_match_result.free_map.clone(),
         },
         env,
@@ -117,6 +118,7 @@ mod tests {
         rhoapi::{expr::ExprInstance, EPlus, Expr, Par, Receive, ReceiveBind},
         rust::utils::{new_boundvar_par, new_freevar_par, new_gint_par, new_send_par},
     };
+    use std::rc::Rc;
 
     use crate::rust::interpreter::{
         compiler::normalize::VarSort, errors::InterpreterError,
@@ -139,11 +141,11 @@ mod tests {
         */
 
         let (mut inputs, env) = proc_visit_inputs_and_env();
-        inputs.bound_map_chain = inputs.bound_map_chain.put_pos((
+        inputs.bound_map_chain = Rc::new(inputs.bound_map_chain.put_pos((
             "add".to_string(),
             VarSort::NameSort,
             SourcePos { line: 0, col: 0 },
-        ));
+        )));
 
         let parser = rholang_parser::RholangParser::new();
 
@@ -226,11 +228,11 @@ mod tests {
         */
 
         let (mut inputs, env) = proc_visit_inputs_and_env();
-        inputs.bound_map_chain = inputs.bound_map_chain.put_pos((
+        inputs.bound_map_chain = Rc::new(inputs.bound_map_chain.put_pos((
             "ret5".to_string(),
             VarSort::NameSort,
             SourcePos { line: 0, col: 0 },
-        ));
+        )));
 
         let parser = rholang_parser::RholangParser::new();
 

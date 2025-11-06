@@ -6,6 +6,7 @@ use crate::rust::interpreter::compiler::exports::{ProcVisitInputs, ProcVisitOutp
 use crate::rust::interpreter::compiler::normalize::VarSort;
 use crate::rust::interpreter::compiler::span_utils::SpanContext;
 use std::result::Result;
+use std::rc::Rc;
 
 use rholang_parser::ast::Var;
 
@@ -125,9 +126,9 @@ mod tests {
         let bound_inputs = {
             let mut inputs = inputs_span();
             inputs.bound_map_chain =
-                inputs
+                Rc::new(inputs
                     .bound_map_chain
-                    .put_span(("x".to_string(), VarSort::ProcSort, test_span));
+                    .put_span(("x".to_string(), VarSort::ProcSort, test_span)));
             inputs
         };
 
@@ -184,9 +185,9 @@ mod tests {
         let bound_inputs = {
             let mut inputs = inputs_span();
             inputs.bound_map_chain =
-                inputs
+                Rc::new(inputs
                     .bound_map_chain
-                    .put_span(("x".to_string(), VarSort::NameSort, bound_span));
+                    .put_span(("x".to_string(), VarSort::NameSort, bound_span)));
             inputs
         };
 

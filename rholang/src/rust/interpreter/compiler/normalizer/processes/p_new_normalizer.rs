@@ -7,6 +7,7 @@ use crate::rust::interpreter::util::filter_and_adjust_bitset;
 use crate::rust::interpreter::util::prepend_new;
 use models::rhoapi::{New, Par};
 use std::collections::{BTreeMap, HashMap};
+use std::rc::Rc;
 
 use rholang_parser::ast::{AnnProc, NameDecl};
 use rholang_parser::SourcePos;
@@ -70,7 +71,7 @@ pub fn normalize_p_new<'ast>(
         proc,
         ProcVisitInputs {
             par: Par::default(),
-            bound_map_chain: new_env.clone(),
+            bound_map_chain: Rc::new(new_env.clone()),
             free_map: input.free_map.clone(),
         },
         env,

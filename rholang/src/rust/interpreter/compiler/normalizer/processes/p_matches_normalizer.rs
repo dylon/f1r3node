@@ -8,6 +8,7 @@ use crate::rust::interpreter::{
 };
 use models::rhoapi::{expr, EMatches, Expr, Par};
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use rholang_parser::ast::AnnProc;
 
@@ -33,7 +34,7 @@ pub fn normalize_p_matches<'ast>(
         right,
         ProcVisitInputs {
             par: Par::default(),
-            bound_map_chain: input.bound_map_chain.clone().push(),
+            bound_map_chain: Rc::new((*input.bound_map_chain).push()),
             free_map: FreeMap::default(),
         },
         env,

@@ -22,6 +22,7 @@ use models::{
 };
 use shared::rust::BitSet;
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 use uuid::Uuid;
 
 use rholang_parser::SourceSpan;
@@ -286,7 +287,7 @@ pub fn normalize_p_input<'ast>(
                 } = normalize_name(
                     name,
                     NameVisitInputs {
-                        bound_map_chain: input.bound_map_chain.clone(),
+                        bound_map_chain: (*input.bound_map_chain).clone(),
                         free_map: current_known_free,
                     },
                     env,
@@ -341,7 +342,7 @@ pub fn normalize_p_input<'ast>(
                         } = normalize_name(
                             name,
                             NameVisitInputs {
-                                bound_map_chain: input.bound_map_chain.push(),
+                                bound_map_chain: (*input.bound_map_chain).push(),
                                 free_map: current_known_free,
                             },
                             env,
@@ -434,9 +435,11 @@ pub fn normalize_p_input<'ast>(
             body,
             ProcVisitInputs {
                 par: Par::default(),
-                bound_map_chain: input
-                    .bound_map_chain
-                    .absorb_free_span(&receive_binds_free_map),
+                bound_map_chain: Rc::new(
+                    input
+                        .bound_map_chain
+                        .absorb_free_span(&receive_binds_free_map),
+                ),
                 free_map: sources_free,
             },
             env,
@@ -495,7 +498,7 @@ mod tests {
     fn inputs_span() -> ProcVisitInputs {
         ProcVisitInputs {
             par: Par::default(),
-            bound_map_chain: BoundMapChain::new(),
+            bound_map_chain: Rc::new(BoundMapChain::new()),
             free_map: FreeMap::new(),
         }
     }

@@ -22,7 +22,7 @@ pub fn normalize_p_send<'ast>(
     let name_match_result = normalize_name(
         channel,
         NameVisitInputs {
-            bound_map_chain: input.bound_map_chain.clone(),
+            bound_map_chain: (*input.bound_map_chain).clone(),
             free_map: input.free_map.clone(),
         },
         env,
@@ -149,13 +149,14 @@ mod tests {
         use crate::rust::interpreter::test_utils::par_builder_util::ParBuilderUtil;
         use rholang_parser::ast::SendType;
         use rholang_parser::SourcePos;
+        use std::rc::Rc;
 
         let (mut inputs, env) = proc_visit_inputs_and_env();
-        inputs.bound_map_chain = inputs.bound_map_chain.put_pos((
+        inputs.bound_map_chain = Rc::new(inputs.bound_map_chain.put_pos((
             "x".to_string(),
             VarSort::NameSort,
             SourcePos { line: 0, col: 0 },
-        ));
+        )));
         let parser = rholang_parser::RholangParser::new();
 
         // Create channel: x (NameVar)
