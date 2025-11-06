@@ -29,6 +29,8 @@ pub fn normalize_p_par<'ast>(
     env: &HashMap<String, Par>,
     parser: &'ast rholang_parser::RholangParser<'ast>,
 ) -> Result<ProcVisitOutputs, InterpreterError> {
+    use models::rust::utils::union;
+
     let flattened_left = flatten_par(left);
     let flattened_right = flatten_par(right);
 
@@ -36,24 +38,67 @@ pub fn normalize_p_par<'ast>(
     all_procs.extend(flattened_left);
     all_procs.extend(flattened_right);
 
-    let mut accumulated_par = input.par;
+    let mut accumulated_exprs = Vec::new();
+    let mut accumulated_sends = Vec::new();
+    let mut accumulated_receives = Vec::new();
+    let mut accumulated_news = Vec::new();
+    let mut accumulated_matches = Vec::new();
+    let mut accumulated_unforgeables = Vec::new();
+    let mut accumulated_bundles = Vec::new();
+    let mut accumulated_connectives = Vec::new();
+    let mut accumulated_locally_free = input.par.locally_free.clone();
+    let mut accumulated_connective_used = input.par.connective_used;
+
     let mut accumulated_free_map = input.free_map;
     let bound_map_chain = input.bound_map_chain;
 
     for proc in all_procs {
         let proc_input = ProcVisitInputs {
-            par: accumulated_par,
+            par: Par::default(),
             free_map: accumulated_free_map,
             bound_map_chain: bound_map_chain.clone(),
         };
 
         let proc_result = normalize_ann_proc(proc, proc_input, env, parser)?;
-        accumulated_par = proc_result.par;
+
+        accumulated_exprs.extend(proc_result.par.exprs);
+        accumulated_sends.extend(proc_result.par.sends);
+        accumulated_receives.extend(proc_result.par.receives);
+        accumulated_news.extend(proc_result.par.news);
+        accumulated_matches.extend(proc_result.par.matches);
+        accumulated_unforgeables.extend(proc_result.par.unforgeables);
+        accumulated_bundles.extend(proc_result.par.bundles);
+        accumulated_connectives.extend(proc_result.par.connectives);
+        accumulated_locally_free = union(accumulated_locally_free, proc_result.par.locally_free);
+        accumulated_connective_used = accumulated_connective_used || proc_result.par.connective_used;
+
         accumulated_free_map = proc_result.free_map;
     }
 
+    accumulated_exprs.reverse();
+    accumulated_sends.reverse();
+    accumulated_receives.reverse();
+    accumulated_news.reverse();
+    accumulated_matches.reverse();
+    accumulated_unforgeables.reverse();
+    accumulated_bundles.reverse();
+    accumulated_connectives.reverse();
+
+    let final_par = Par {
+        exprs: accumulated_exprs,
+        sends: accumulated_sends,
+        receives: accumulated_receives,
+        news: accumulated_news,
+        matches: accumulated_matches,
+        unforgeables: accumulated_unforgeables,
+        bundles: accumulated_bundles,
+        connectives: accumulated_connectives,
+        locally_free: accumulated_locally_free,
+        connective_used: accumulated_connective_used,
+    };
+
     Ok(ProcVisitOutputs {
-        par: accumulated_par,
+        par: final_par,
         free_map: accumulated_free_map,
     })
 }
