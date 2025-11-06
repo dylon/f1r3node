@@ -682,7 +682,7 @@ impl DebruijnInterpreter {
         // println!("\nenv in eval_send: {:?}", env);
         self.cost.charge(send_eval_cost())?;
         let eval_chan = self.eval_expr(&unwrap_option_safe(send.chan.clone())?, env)?;
-        let sub_chan = self.substitute.substitute_and_charge(&eval_chan, 0, env)?;
+        let sub_chan = self.substitute.substitute_and_charge(eval_chan, 0, env)?;
         let unbundled = match single_bundle(&sub_chan) {
             Some(value) => {
                 if !value.write_flag {
@@ -705,7 +705,7 @@ impl DebruijnInterpreter {
         let subst_data = data
             .clone()
             .into_iter()
-            .map(|p| self.substitute.substitute_and_charge(&p, 0, env))
+            .map(|p| self.substitute.substitute_and_charge(p, 0, env))
             .collect::<Result<Vec<_>, InterpreterError>>()?;
 
         // println!("\ndata in eval_send: {:?}", data);
@@ -746,7 +746,7 @@ impl DebruijnInterpreter {
                 let subst_patterns = rb
                     .patterns
                     .into_iter()
-                    .map(|pattern| self.substitute.substitute_and_charge(&pattern, 1, env))
+                    .map(|pattern| self.substitute.substitute_and_charge(pattern, 1, env))
                     .collect::<Result<Vec<_>, InterpreterError>>()?;
 
                 // println!("\nsubst_patterns in eval_receive: {:?}", subst_patterns);
@@ -764,7 +764,7 @@ impl DebruijnInterpreter {
 
         // TODO: Allow for the environment to be stored with the body in the Tuplespace - OLD
         let subst_body = self.substitute.substitute_no_sort_and_charge(
-            receive.body.as_ref().unwrap(),
+            receive.body.clone().unwrap(),
             0,
             &env.shift(receive.bind_count),
         )?;
@@ -847,7 +847,7 @@ impl DebruijnInterpreter {
 
                         [single_case, case_rem @ ..] => {
                             let pattern = self.substitute.substitute_and_charge(
-                                &unwrap_option_safe(single_case.pattern.clone())?,
+                                unwrap_option_safe(single_case.pattern.clone())?,
                                 1,
                                 env,
                             )?;
@@ -892,7 +892,7 @@ impl DebruijnInterpreter {
         let evaled_target = self.eval_expr(&mat.target.as_ref().unwrap(), env)?;
         let subst_target = self
             .substitute
-            .substitute_and_charge(&evaled_target, 0, env)?;
+            .substitute_and_charge(evaled_target, 0, env)?;
 
         // println!("\nsubst_target in eval_match: {:?}", subst_target);
 
@@ -1006,7 +1006,7 @@ impl DebruijnInterpreter {
     fn unbundle_receive(&self, rb: &ReceiveBind, env: &Env<Par>) -> Result<Par, InterpreterError> {
         let eval_src = self.eval_expr(&unwrap_option_safe(rb.source.clone())?, env)?;
         // println!("\neval_src in unbundle_receive: {:?}", eval_src);
-        let subst = self.substitute.substitute_and_charge(&eval_src, 0, env)?;
+        let subst = self.substitute.substitute_and_charge(eval_src, 0, env)?;
         // println!("\nsubst in unbundle_receive: {:?}", eval_src);
         // Check if we try to read from bundled channel
         let unbndl = match single_bundle(&subst) {
@@ -1317,8 +1317,8 @@ impl DebruijnInterpreter {
                     let v1 = self.eval_expr(&p1.clone().unwrap(), env)?;
                     let v2 = self.eval_expr(&p2.clone().unwrap(), env)?;
                     // TODO: build an equality operator that takes in an environment. - OLD
-                    let sv1 = self.substitute.substitute_and_charge(&v1, 0, env)?;
-                    let sv2 = self.substitute.substitute_and_charge(&v2, 0, env)?;
+                    let sv1 = self.substitute.substitute_and_charge(v1, 0, env)?;
+                    let sv2 = self.substitute.substitute_and_charge(v2, 0, env)?;
                     self.cost.charge(equality_check_cost(&sv1, &sv2))?;
 
                     Ok(Expr {
@@ -1329,8 +1329,8 @@ impl DebruijnInterpreter {
                 ExprInstance::ENeqBody(ENeq { p1, p2 }) => {
                     let v1 = self.eval_expr(&p1.clone().unwrap(), env)?;
                     let v2 = self.eval_expr(&p2.clone().unwrap(), env)?;
-                    let sv1 = self.substitute.substitute_and_charge(&v1, 0, env)?;
-                    let sv2 = self.substitute.substitute_and_charge(&v2, 0, env)?;
+                    let sv1 = self.substitute.substitute_and_charge(v1, 0, env)?;
+                    let sv2 = self.substitute.substitute_and_charge(v2, 0, env)?;
                     self.cost.charge(equality_check_cost(&sv1, &sv2))?;
 
                     Ok(Expr {
@@ -1362,10 +1362,10 @@ impl DebruijnInterpreter {
                     let evaled_target = self.eval_expr(&target.clone().unwrap(), env)?;
                     let subst_target =
                         self.substitute
-                            .substitute_and_charge(&evaled_target, 0, env)?;
+                            .substitute_and_charge(evaled_target, 0, env)?;
                     let subst_pattern =
                         self.substitute
-                            .substitute_and_charge(&pattern.clone().unwrap(), 1, env)?;
+                            .substitute_and_charge(pattern.clone().unwrap(), 1, env)?;
 
                     let mut spatial_matcher = SpatialMatcherContext::new();
                     let match_result =
@@ -1860,7 +1860,7 @@ impl DebruijnInterpreter {
                 let expr_subst =
                     self.outer
                         .substitute
-                        .substitute_and_charge(&expr_evaled, 0, env)?;
+                        .substitute_and_charge(expr_evaled, 0, env)?;
 
                 // println!("\nexpr_subst in to_byte_array_method: {:?}", expr_subst);
 

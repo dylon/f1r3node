@@ -63,3 +63,7 @@ harness = false
 [[bench]]
 name = "sub_pars_benchmark"
 harness = false
+
+[[bench]]
+name = "substitution_benchmark"
+harness = false
