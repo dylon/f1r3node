@@ -50,26 +50,24 @@ pub struct Substitute {
 impl Substitute {
     pub fn substitute_and_charge<A>(
         &self,
-        term: &A,
+        term: A,
         depth: i32,
         env: &Env<Par>,
     ) -> Result<A, InterpreterError>
     where
         Self: SubstituteTrait<A>,
-        A: Clone + prost::Message,
+        A: prost::Message,
     {
         // scala 'charge' function built in here
-        match self.substitute(term.clone(), depth, env) {
+        match self.substitute(term, depth, env) {
             Ok(subst_term) => {
                 self.cost.charge(Cost::create_from_generic(
-                    subst_term.clone(),
+                    &subst_term,
                     "substitution".to_string(),
                 ))?;
                 Ok(subst_term)
             }
             Err(th) => {
-                self.cost
-                    .charge(Cost::create_from_generic(term.clone(), "".to_string()))?;
                 Err(th)
             }
         }
@@ -77,26 +75,24 @@ impl Substitute {
 
     pub fn substitute_no_sort_and_charge<A>(
         &self,
-        term: &A,
+        term: A,
         depth: i32,
         env: &Env<Par>,
     ) -> Result<A, InterpreterError>
     where
         Self: SubstituteTrait<A>,
-        A: Clone + prost::Message,
+        A: prost::Message,
     {
         // scala 'charge' function built in here
-        match self.substitute_no_sort(term.clone(), depth, env) {
+        match self.substitute_no_sort(term, depth, env) {
             Ok(subst_term) => {
                 self.cost.charge(Cost::create_from_generic(
-                    subst_term.clone(),
+                    &subst_term,
                     "substitution".to_string(),
                 ))?;
                 Ok(subst_term)
             }
             Err(th) => {
-                self.cost
-                    .charge(Cost::create_from_generic(term.clone(), "".to_string()))?;
                 Err(th)
             }
         }
