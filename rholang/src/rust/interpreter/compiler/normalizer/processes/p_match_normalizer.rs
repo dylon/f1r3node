@@ -33,7 +33,10 @@ pub fn normalize_p_match<'ast>(
         parser,
     )?;
 
-    let mut init_acc = (vec![], target_result.free_map.clone(), Vec::new(), false);
+    let mut match_cases = Vec::new();
+    let mut accumulated_free_map = target_result.free_map.clone();
+    let mut accumulated_locally_free = Vec::new();
+    let mut accumulated_connective_used = false;
 
     for case in cases {
         let (pattern, case_body) = lift_case(case)?;
@@ -58,38 +61,35 @@ pub fn normalize_p_match<'ast>(
             ProcVisitInputs {
                 par: Par::default(),
                 bound_map_chain: Rc::new(case_env.clone()),
-                free_map: init_acc.1.clone(),
+                free_map: accumulated_free_map.clone(),
             },
             env,
             parser,
         )?;
 
-        init_acc.0.insert(
-            0,
-            MatchCase {
-                pattern: Some(pattern_result.par.clone()),
-                source: Some(case_body_result.par.clone()),
-                free_count: bound_count as i32,
-            },
-        );
-        init_acc.1 = case_body_result.free_map;
-        init_acc.2 = union(
-            union(init_acc.2.clone(), pattern_result.par.locally_free.clone()),
+        match_cases.push(MatchCase {
+            pattern: Some(pattern_result.par.clone()),
+            source: Some(case_body_result.par.clone()),
+            free_count: bound_count as i32,
+        });
+        accumulated_free_map = case_body_result.free_map;
+        accumulated_locally_free = union(
+            union(accumulated_locally_free, pattern_result.par.locally_free.clone()),
             filter_and_adjust_bitset(case_body_result.par.locally_free.clone(), bound_count),
         );
-        init_acc.3 = init_acc.3 || case_body_result.par.connective_used;
+        accumulated_connective_used = accumulated_connective_used || case_body_result.par.connective_used;
     }
 
     let result_match = Match {
         target: Some(target_result.par.clone()),
-        cases: init_acc.0.into_iter().rev().collect(),
-        locally_free: union(init_acc.2, target_result.par.locally_free.clone()),
-        connective_used: init_acc.3 || target_result.par.connective_used.clone(),
+        cases: match_cases,
+        locally_free: union(accumulated_locally_free, target_result.par.locally_free.clone()),
+        connective_used: accumulated_connective_used || target_result.par.connective_used.clone(),
     };
 
     Ok(ProcVisitOutputs {
         par: input.par.clone().prepend_match(result_match.clone()),
-        free_map: init_acc.1,
+        free_map: accumulated_free_map,
     })
 }
 
