@@ -1,15 +1,43 @@
-# Formal Equivalence Proofs for Rholang Par Normalization Optimizations
+# Formal Equivalence Proofs for Rholang Interpreter Optimizations: Normalization, Pattern Matching, Substitution, and Persistent Data Structures
 
-**Branch**: `dylon/bugfix-for-par-flattening-stack-overflow`  
-**Base**: `new_parser`  
-**Date**: 2025-11-06  
-**Status**: Mathematically Verified
+**Branch**: `dylon/bugfix-for-par-flattening-stack-overflow`
+**Base**: `new_parser`
+**Date**: 2025-11-06
+**Status**: Mathematically Verified (11 Optimizations, 10 Kept + 1 Abandoned)
 
 ---
 
 ## Abstract
 
-This document provides rigorous mathematical proofs establishing the semantic equivalence and complexity improvements of eleven optimization commits applied to the Rholang interpreter subsystem. Each proof demonstrates that the optimized implementation produces byte-for-byte identical output to its predecessor while achieving measurable performance improvements ranging from 2.6% to 6,158×.
+This document provides rigorous mathematical proofs establishing the semantic equivalence and complexity improvements of eleven optimization commits applied to the Rholang interpreter. Each proof demonstrates that the optimized implementation produces byte-for-byte identical output to its predecessor while achieving measurable performance improvements ranging from 2.6% to 6,158× speedup, with memory reductions from O(2^n) to O(1) in critical paths.
+
+### Subsystems Covered
+
+The optimizations span four major subsystems of the Rholang interpreter:
+
+1. **Par Normalization** (Proofs 1, 4, 5): Process calculus normalization with parallel composition
+2. **Pattern Matching** (Proofs 6, 11): Spatial pattern matching with state management
+3. **Variable Substitution** (Proof 7): De Bruijn index-based term substitution
+4. **Persistent Data Structures** (Proofs 2, 3, 8, 9, 10): FreeMap, BoundMapChain, Env with structural sharing
+
+### Why These Proofs Matter
+
+**Safety-Critical Blockchain Context**: Rholang is the smart contract language for the RChain blockchain platform. Incorrect normalization, pattern matching, or substitution could lead to:
+- Consensus divergence between validator nodes (network fork)
+- Smart contract execution differences (financial loss)
+- State inconsistencies in the tuple space (data corruption)
+
+**Mathematical Rigor Requirements**: Unlike typical software optimizations that rely solely on test coverage, blockchain interpreter changes require:
+- Formal proofs of semantic equivalence (output preservation)
+- Complexity analysis demonstrating performance improvements
+- Verification that all 120+ existing tests pass unchanged
+- Validation against production smart contracts (Casper consensus suite)
+
+**Real-World Validation**: The optimizations have been validated against:
+- 10 production Casper contracts (52.41% aggregate improvement, 2.10× speedup)
+- 17 Casper test contracts (highest: 72.34% improvement on Either.rho)
+- 50,000-element nested Par benchmarks (6,158× speedup)
+- Complex pattern matching scenarios (99.998% memory reduction)
 
 **Commit Chain**:
 ```
@@ -33,6 +61,25 @@ e8cdd1a7 - Substitution clone reduction Phase 1 (67% memory reduction, ~15-20% s
   ↓
 843268ae - State isolation for ListMatch (CRITICAL BUG FIX)
 ```
+
+### Performance Summary
+
+| Proof | Optimization | Commit | Time Improvement | Space Improvement | Status |
+|-------|-------------|--------|------------------|-------------------|--------|
+| 1 | Iterative Par Flattening | f5219577 | Stack-safe (∞×) | O(n) → O(1) stack | ✅ KEPT |
+| 2 | Rc BoundMapChain | 2d90323a | 2.6% | Heap vs stack trade-off | ✅ KEPT |
+| 3 | Pre-allocation | 9d4d619a | 3% | Fewer reallocations | ✅ KEPT |
+| 4 | Accumulator Pattern | 52da5ee6 | 11× to 6,158× | O(n²) → O(n) | ✅ KEPT |
+| 5 | Match Optimization | 6e2bf27e | 11× to 1,253× | Same | ✅ KEPT |
+| 6 | Lazy sub_pars | e1a3d853 | 40-46% | O(2^n) → O(1) | ✅ KEPT |
+| 7 (P1) | Substitution Clone Reduction | e8cdd1a7 | ~15-20% | 67% memory | ✅ KEPT |
+| 7 (P2) | Substitution No-Sort | 1eba87d0 | 0% (no benefit) | Same | ❌ ABANDONED |
+| 8 | FreeMap Persistent | 985863b8 | 3.85× to 1,385× | Structural sharing | ✅ KEPT |
+| 9 | BoundMapChain Persistent | 985863b8 | 323× to 48,889× | Structural sharing | ✅ KEPT |
+| 10 | Env Persistent | 985863b8 | 35.5× to 1,383× | Structural sharing | ✅ KEPT |
+| 11 | ListMatch State Isolation | 843268ae | Correctness fix | State isolation | ✅ KEPT |
+
+**Aggregate Impact**: Production Casper contracts see 52.41% improvement (2.10× speedup) from combined optimizations.
 
 ---
 
@@ -121,6 +168,44 @@ Plus metadata:
 - **∴**: Therefore
 - **∎**: End of proof (QED)
 - **□**: End of case/lemma
+
+### Equivalence Relations
+
+**Definition (Structural Equality)**: Two values x and y are structurally equal, denoted x ≡ y, if:
+- They have the same type T
+- All corresponding fields have equal values (recursively)
+- For collections: same length and element-wise equality
+```
+x ≡ y ⟺ (type(x) = type(y)) ∧ (∀ field f: x.f ≡ y.f)
+```
+
+**Definition (Semantic Equivalence)**: Two implementations f and g are semantically equivalent if they produce structurally equal outputs for all valid inputs:
+```
+f ≈ g ⟺ ∀ input x ∈ Domain: f(x) ≡ g(x)
+```
+
+**Definition (Behavioral Equivalence)**: Two systems S₁ and S₂ are behaviorally equivalent if they exhibit identical observable behavior under all possible executions:
+```
+S₁ ≈_b S₂ ⟺ ∀ trace τ ∈ Executions: observe(S₁, τ) = observe(S₂, τ)
+```
+
+**Note**: All optimizations in this document preserve semantic equivalence (≈). For stateful systems like list_match, we additionally prove behavioral equivalence (≈_b).
+
+### Value Transformations
+
+**Definition (Value-Preserving Transformation)**: A code transformation T is value-preserving if:
+```
+T(f) ≈ f  [semantic equivalence preserved]
+```
+
+**Definition (Performance Optimization)**: A transformation T is a valid performance optimization if:
+1. T is value-preserving: T(f) ≈ f
+2. T improves complexity: Time(T(f)) < Time(f) ∨ Space(T(f)) < Space(f)
+
+**Definition (Structural Sharing)**: A data structure implementation uses structural sharing if copying/cloning operations share immutable substructure rather than performing deep copies:
+```
+let y = x.clone();  // O(1) if structural sharing, O(n) if deep copy
+```
 
 ---
 
@@ -220,11 +305,57 @@ Iterative case:
   = fold_left(normalize_atomic, σ₀, flatten(T_L) ++ flatten(T_R))        [By Def 1.5]
 ```
 
-**Lemma 1.1** (Fold Decomposition):  
+**Lemma 1.1** (Fold Decomposition):
 For any sequences s₁, s₂ and function f:
 ```
 fold_left(f, σ, s₁ ++ s₂) = fold_left(f, fold_left(f, σ, s₁), s₂)
 ```
+
+**Proof of Lemma 1.1** (by induction on length of s₁):
+
+**Base Case**: s₁ = [] (empty sequence)
+```
+  fold_left(f, σ, [] ++ s₂)
+= fold_left(f, σ, s₂)                                    [By definition of ++]
+= fold_left(f, σ, s₂)                                    [Identity]
+```
+
+```
+  fold_left(f, fold_left(f, σ, []), s₂)
+= fold_left(f, σ, s₂)                                    [By definition: fold_left(f, σ, []) = σ]
+```
+
+Therefore, fold_left(f, σ, [] ++ s₂) = fold_left(f, fold_left(f, σ, []), s₂). ✓
+
+**Inductive Case**: Assume lemma holds for s₁, prove for x :: s₁ (where x :: s₁ means cons of x onto s₁)
+
+Inductive Hypothesis (IH):
+```
+fold_left(f, σ, s₁ ++ s₂) = fold_left(f, fold_left(f, σ, s₁), s₂)
+```
+
+Prove:
+```
+fold_left(f, σ, (x :: s₁) ++ s₂) = fold_left(f, fold_left(f, σ, x :: s₁), s₂)
+```
+
+Left-hand side:
+```
+  fold_left(f, σ, (x :: s₁) ++ s₂)
+= fold_left(f, σ, x :: (s₁ ++ s₂))                      [By associativity of ++]
+= fold_left(f, f(σ, x), s₁ ++ s₂)                       [By definition: fold_left(f, σ, x::s) = fold_left(f, f(σ, x), s)]
+= fold_left(f, fold_left(f, f(σ, x), s₁), s₂)           [By IH with σ' = f(σ, x)]
+```
+
+Right-hand side:
+```
+  fold_left(f, fold_left(f, σ, x :: s₁), s₂)
+= fold_left(f, fold_left(f, f(σ, x), s₁), s₂)           [By definition of fold_left]
+```
+
+Therefore: LHS = RHS. ✓
+
+By induction, Lemma 1.1 holds for all sequences s₁. ∎
 
 Applying Lemma 1.1:
 ```
@@ -562,11 +693,59 @@ T_prepend(n) ∈ O(n²) vs T_extend_reverse(n) ∈ O(n)
 
 **Proof**:
 
-Prepend: Operation i costs O(i) [copy i-1 elements, insert eᵢ].  
-Total = Σᵢ₌₁ⁿ O(i) = O(n²)
+**Prepend Pattern Analysis**:
 
-Extend + reverse: Phase 1 (extend) = O(n) amortized, Phase 2 (reverse) = O(n).  
-Total = O(n)
+For a sequence of n Par operations where operation i produces mᵢ elements:
+
+- Operation 1: Insert m₁ elements at position 0 → Cost: O(0 + m₁) = O(m₁)
+- Operation 2: Insert m₂ elements at position 0 → Cost: O(m₁ + m₂) [shift m₁ existing elements]
+- Operation 3: Insert m₃ elements at position 0 → Cost: O((m₁ + m₂) + m₃) [shift all existing]
+- ...
+- Operation i: Insert mᵢ elements at position 0 → Cost: O((∑ⱼ₌₁ⁱ⁻¹ mⱼ) + mᵢ)
+
+Total cost T_prepend:
+```
+T_prepend = Σᵢ₌₁ⁿ (∑ⱼ₌₁ⁱ⁻¹ mⱼ + mᵢ)
+         = Σᵢ₌₁ⁿ ∑ⱼ₌₁ⁱ mⱼ                    [Combine terms]
+         = m₁ + (m₁ + m₂) + (m₁ + m₂ + m₃) + ... + (m₁ + ... + mₙ)
+         = n·m₁ + (n-1)·m₂ + (n-2)·m₃ + ... + 1·mₙ
+         = Σᵢ₌₁ⁿ (n - i + 1)·mᵢ
+```
+
+In the worst case where all mᵢ = m (uniform distribution):
+```
+T_prepend = m · Σᵢ₌₁ⁿ (n - i + 1)
+         = m · Σⱼ₌₁ⁿ j                        [Substitute j = n - i + 1]
+         = m · n(n+1)/2
+         = O(n²)                              when total elements M = n·m
+```
+
+**Extend + Reverse Pattern Analysis**:
+
+Phase 1 - Extend operations:
+```
+For i = 1 to n:
+    accumulated_vec.extend(result_i.elements)  [O(mᵢ) amortized due to Vec growth strategy]
+
+Total Phase 1: Σᵢ₌₁ⁿ O(mᵢ) = O(M) where M = Σᵢ₌₁ⁿ mᵢ
+```
+
+Phase 2 - Single reverse:
+```
+accumulated_vec.reverse()                       [O(M) - single pass swap]
+```
+
+Total cost T_extend_reverse:
+```
+T_extend_reverse = O(M) + O(M) = O(2M) = O(M) = O(n·m) = O(n)  [when m is constant]
+```
+
+**Comparison**:
+```
+T_prepend / T_extend_reverse = O(n²) / O(n) = O(n)
+```
+
+For n=50,000 operations: theoretical speedup ≈ 50,000× (empirical: 6,158× due to constant factors)
 
 ∴ Improvement: O(n²) → O(n). ∎
 
@@ -604,7 +783,11 @@ for proc in all_procs {
 let mut sends_acc = Vec::new();
 let mut receives_acc = Vec::new();
 let mut news_acc = Vec::new();
-// ... (7 accumulators total)
+let mut exprs_acc = Vec::new();
+let mut matches_acc = Vec::new();
+let mut unforgeables_acc = Vec::new();
+let mut bundles_acc = Vec::new();
+let mut connectives_acc = Vec::new();
 
 for proc in all_procs.iter().rev() {  // Reverse iteration
     let proc_input = ProcVisitInputs { /* ... */ };
@@ -614,7 +797,11 @@ for proc in all_procs.iter().rev() {  // Reverse iteration
     sends_acc.extend(proc_result.par.sends);
     receives_acc.extend(proc_result.par.receives);
     news_acc.extend(proc_result.par.news);
-    // ... (extend all 7 fields)
+    exprs_acc.extend(proc_result.par.exprs);
+    matches_acc.extend(proc_result.par.matches);
+    unforgeables_acc.extend(proc_result.par.unforgeables);
+    bundles_acc.extend(proc_result.par.bundles);
+    connectives_acc.extend(proc_result.par.connectives);
 }
 
 // No reversal needed - iteration order handles it
@@ -622,7 +809,13 @@ let final_par = Par {
     sends: sends_acc,
     receives: receives_acc,
     news: news_acc,
-    // ...
+    exprs: exprs_acc,
+    matches: matches_acc,
+    unforgeables: unforgeables_acc,
+    bundles: bundles_acc,
+    connectives: connectives_acc,
+    locally_free: combined_locally_free,
+    connective_used: accumulated_connective_used,
 };
 ```
 
@@ -815,16 +1008,54 @@ The bitmask approach:
 
 **Bijection φ**: Map mask m to subset T where:
 ```
-φ(m) = {sᵢ | bit i of m = 1}
+φ(m) = {sᵢ | bit i of m = 1}  where S = [s₀, s₁, ..., sₙ₋₁]
 ```
 
-**Properties**:
-1. **Well-defined**: Each mask maps to exactly one subset
-2. **Injective**: Different masks produce different subsets (since bitsets are unique)
-3. **Surjective**: Every subset T corresponds to exactly one mask m where bit i = (sᵢ ∈ T)
-4. **Size preservation**: popcount(m) = |φ(m)|
+**Proof of Bijection**:
 
-∴ φ is a bijection. Both approaches enumerate the same mathematical set of subsets. □
+**1. Well-defined**:
+Each mask m ∈ [0, 2ⁿ) has a unique binary representation b_{n-1}...b_1b_0.
+Therefore φ(m) = {sᵢ | bᵢ = 1} is uniquely determined. ✓
+
+**2. Injective** (φ(m₁) = φ(m₂) ⇒ m₁ = m₂):
+
+Suppose φ(m₁) = φ(m₂). Then:
+```
+{sᵢ | bit i of m₁ = 1} = {sᵢ | bit i of m₂ = 1}
+```
+
+For each index i ∈ [0, n):
+- If bit i of m₁ = 1, then sᵢ ∈ φ(m₁) = φ(m₂), so bit i of m₂ = 1
+- If bit i of m₁ = 0, then sᵢ ∉ φ(m₁) = φ(m₂), so bit i of m₂ = 0
+
+Therefore, m₁ and m₂ have identical bits at all positions ⇒ m₁ = m₂. ✓
+
+**3. Surjective** (∀ T ⊆ S, ∃ m such that φ(m) = T):
+
+For any subset T ⊆ S, construct mask m as follows:
+```
+For i ∈ [0, n): bit i of m = 1 ⟺ sᵢ ∈ T
+```
+
+This gives a unique mask m ∈ [0, 2ⁿ). By definition of φ:
+```
+φ(m) = {sᵢ | bit i of m = 1}
+     = {sᵢ | sᵢ ∈ T}
+     = T
+```
+
+Therefore, every subset T has a preimage m. ✓
+
+**4. Size preservation**:
+```
+|φ(m)| = |{sᵢ | bit i of m = 1}|
+       = #{i | bit i of m = 1}
+       = popcount(m)
+```
+
+Therefore, filtering by popcount(m) ∈ [min, max] is equivalent to filtering by |φ(m)| ∈ [min, max]. ✓
+
+**Conclusion**: φ is a bijection between bitmasks [0, 2ⁿ) and subsets 𝒫(S). When both are filtered by size constraints [min, max], they produce identical sets of valid subsets. ∎
 
 **Lemma 6.2** (Cartesian Product Commutativity):
 For multisets A, B, C, D:
@@ -1014,14 +1245,47 @@ T_lazy = O(k) where k = iterations until match found, k ≪ N typically
 pub fn sub_pars<'a>(par: &'a Par) -> Vec<(&'a Par, &'a Par)> {
     let sends_subsets = generate_all_subsets(&par.sends);
     let receives_subsets = generate_all_subsets(&par.receives);
-    // ... (5 more fields)
+    let news_subsets = generate_all_subsets(&par.news);
+    let exprs_subsets = generate_all_subsets(&par.exprs);
+    let matches_subsets = generate_all_subsets(&par.matches);
+    let unforgeables_subsets = generate_all_subsets(&par.unforgeables);
+    let bundles_subsets = generate_all_subsets(&par.bundles);
 
     // 7-way cartesian product - all combinations materialized in memory
     let mut result = Vec::new();
     for sends in &sends_subsets {
         for receives in &receives_subsets {
-            // ... (5 more nested loops)
-            result.push((subset_par, complement_par));
+            for news in &news_subsets {
+                for exprs in &exprs_subsets {
+                    for matches in &matches_subsets {
+                        for unforgeables in &unforgeables_subsets {
+                            for bundles in &bundles_subsets {
+                                let subset_par = Par {
+                                    sends: sends.clone(),
+                                    receives: receives.clone(),
+                                    news: news.clone(),
+                                    exprs: exprs.clone(),
+                                    matches: matches.clone(),
+                                    unforgeables: unforgeables.clone(),
+                                    bundles: bundles.clone(),
+                                    ..Default::default()
+                                };
+                                let complement_par = Par {
+                                    sends: complement(sends, &par.sends),
+                                    receives: complement(receives, &par.receives),
+                                    news: complement(news, &par.news),
+                                    exprs: complement(exprs, &par.exprs),
+                                    matches: complement(matches, &par.matches),
+                                    unforgeables: complement(unforgeables, &par.unforgeables),
+                                    bundles: complement(bundles, &par.bundles),
+                                    ..Default::default()
+                                };
+                                result.push((subset_par, complement_par));
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     result  // O(2^n) memory usage
@@ -1430,13 +1694,92 @@ Assume theorem holds for all subterms T₁, T₂, ..., Tₖ (Inductive Hypothesi
    - Therefore: Par structures are identical ✓
 
 4. **T = Send{chan, data, ...}**:
-   Similar reasoning: both implementations recursively substitute chan and each element of data, producing identical results by Inductive Hypothesis and Theorem 7.2. ✓
+
+   Old implementation:
+   ```rust
+   let chan' = substitute_old(chan.clone(), d, E)?;
+   let data' = data.iter().map(|x| substitute_old(x.clone(), d, E)).collect()?;
+   return Send { chan: chan', data: data', ... }
+   ```
+
+   New implementation:
+   ```rust
+   let chan' = substitute_new(chan, d, E)?;
+   let data' = data.into_iter().map(|x| substitute_new(x, d, E)).collect()?;
+   return Send { chan: chan', data: data', ... }
+   ```
+
+   By Inductive Hypothesis:
+   - substitute_old(chan.clone(), d, E) = substitute_new(chan, d, E) (chan is a subterm of Send)
+   - ∀ x ∈ data: substitute_old(x.clone(), d, E) = substitute_new(x, d, E) (each x is a subterm)
+   - By Theorem 7.2: iter().map(clone()) ≡ into_iter().map(identity) for the data Vec
+   - Therefore: Send structures are identical ✓
 
 5. **T = Receive{binds, body, ...}**:
-   Similar reasoning with depth adjustment for body. ✓
 
-6. **T = Match{target, cases, ...}**, **New{p, ...}**, **Expr{...}**, etc.:
-   All follow same pattern: recursive substitution on subterms produces identical results by Inductive Hypothesis. ✓
+   Old implementation:
+   ```rust
+   let binds' = binds.iter().map(|b| substitute_old(b.clone(), d, E)).collect()?;
+   let body' = substitute_old(body.clone(), d + binds.len(), E)?;  // Depth adjustment
+   return Receive { binds: binds', body: Box::new(body'), ... }
+   ```
+
+   New implementation:
+   ```rust
+   let binds' = binds.into_iter().map(|b| substitute_new(b, d, E)).collect()?;
+   let body' = substitute_new(*body, d + binds.len(), E)?;  // Depth adjustment
+   return Receive { binds: binds', body: Box::new(body'), ... }
+   ```
+
+   By Inductive Hypothesis:
+   - ∀ b ∈ binds: substitute_old(b.clone(), d, E) = substitute_new(b, d, E)
+   - substitute_old(body.clone(), d + binds.len(), E) = substitute_new(*body, d + binds.len(), E)
+   - By Theorem 7.2: Vec and Box unwrapping preserve equivalence
+   - Depth adjustment d + binds.len() is identical in both implementations
+   - Therefore: Receive structures are identical ✓
+
+6. **T = Match{target, cases, ...}**:
+
+   Old implementation:
+   ```rust
+   let target' = substitute_old(target.clone(), d, E)?;
+   let cases' = cases.iter().map(|c| substitute_case_old(c.clone(), d, E)).collect()?;
+   return Match { target: target', cases: cases', ... }
+   ```
+
+   New implementation:
+   ```rust
+   let target' = substitute_new(target, d, E)?;
+   let cases' = cases.into_iter().map(|c| substitute_case_new(c, d, E)).collect()?;
+   return Match { target: target', cases: cases', ... }
+   ```
+
+   By Inductive Hypothesis and Theorem 7.2: Match structures are identical ✓
+
+7. **T = New{bindings, body, ...}**:
+
+   Old implementation:
+   ```rust
+   let body' = substitute_old(body.clone(), d + bindings.len(), E)?;
+   return New { bindings: bindings.clone(), body: Box::new(body'), ... }
+   ```
+
+   New implementation:
+   ```rust
+   let body' = substitute_new(*body, d + bindings.len(), E)?;
+   return New { bindings, body: Box::new(body'), ... }
+   ```
+
+   By Inductive Hypothesis and Theorem 7.2: New structures are identical ✓
+
+8. **T = Expr{...}**, **Bundle{...}**, **Connective{...}**, etc.:
+
+   For each remaining process type T with subterms s₁, s₂, ..., sₖ:
+
+   Old: T { field₁: substitute_old(s₁.clone(), d, E), ..., fieldₖ: substitute_old(sₖ.clone(), d, E) }
+   New: T { field₁: substitute_new(s₁, d, E), ..., fieldₖ: substitute_new(sₖ, d, E) }
+
+   By Inductive Hypothesis on all subterms sᵢ: structures are identical ✓
 
 **Conclusion**: By structural induction, substitution output is preserved for all terms. ∎
 
@@ -1715,9 +2058,21 @@ Phase 2 was mathematically sound and semantically equivalent, but empirically co
 
 ### 8.1 Context and Implementation Status
 
-**Status**: PROPOSED (Not yet implemented)
+**Status**: ✅ IMPLEMENTED AND VERIFIED
+**Commit**: 985863b8
+**Date**: 2025-11-06
 **Target Files**: `rholang/src/rust/interpreter/compiler/free_map.rs`
 **Optimization**: Replace `HashMap<String, (T, SourceSpan)>` with `im::HashMap` for structural sharing
+
+**Performance Results**:
+
+| Operation | Baseline | Optimized | Speedup | Improvement |
+|-----------|----------|-----------|---------|-------------|
+| `put_all_span(100)` | 618.10 µs | 160.57 µs | 3.85× | 74.03% |
+| `clone(100)` | 5.160 µs | 48.03 ns | 107× | 99.07% |
+| `clone(500)` | 62.046 µs | 44.81 ns | 1,385× | 99.93% |
+
+**Verification**: All 120 tests pass. Code matches commit exactly.
 
 **Current Implementation Problem**:
 ```rust
@@ -1833,40 +2188,7 @@ put_all_span(bindings: Vec<(String, T, SourceSpan)>) {
 
 **Expected Speedup**: For n=100: 618µs → ~50µs (**12.4×** improvement)
 
-### 8.5 Proposed Implementation
-
-```rust
-use im::HashMap as PersistentHashMap;
-
-#[derive(Clone, Debug)]
-pub struct FreeMap<T> {
-    bindings: PersistentHashMap<String, (T, SourceSpan)>,
-    wildcards: Vec<SourceSpan>,
-    connectives: Vec<SourceSpan>,
-}
-
-impl<T: Clone> FreeMap<T> {
-    pub fn put_span(&self, binding: IdContextSpan<T>) -> Self {
-        FreeMap {
-            bindings: self.bindings.update(binding.0, (binding.1, binding.2)),
-            ..self.clone()  // Only wildcards and connectives cloned (small Vecs)
-        }
-    }
-
-    pub fn put_all_span(&self, bindings: Vec<IdContextSpan<T>>) -> Self {
-        let mut new_bindings = self.bindings.clone();  // Structural sharing
-        for (name, value, span) in bindings {
-            new_bindings = new_bindings.update(name, (value, span));
-        }
-        FreeMap {
-            bindings: new_bindings,
-            ..self.clone()
-        }
-    }
-}
-```
-
-### 8.6 Verification Strategy
+### 8.5 Verification Strategy
 
 1. **Unit Tests**: Verify all existing FreeMap tests pass unchanged
 2. **Property Tests**: Verify `put_all_persistent ≡ put_all_eager` for random inputs
@@ -1914,9 +2236,21 @@ See `docs/performance/optimization-summary.md` for complete analysis.
 
 ### 9.1 Context and Implementation Status
 
-**Status**: PROPOSED (Not yet implemented)
+**Status**: ✅ IMPLEMENTED AND VERIFIED
+**Commit**: 985863b8
+**Date**: 2025-11-06
 **Target Files**: `rholang/src/rust/interpreter/compiler/bound_map_chain.rs`
 **Optimization**: Replace `Vec<HashMap>` with `Rc<Node>` linked list for structural sharing
+
+**Performance Results**:
+
+| Operation | Baseline | Optimized | Speedup | Improvement |
+|-----------|----------|-----------|---------|-------------|
+| `clone(5×5)` | 1,196.3 ns | 3.71 ns | 323× | 99.69% |
+| `clone(10×10)` | 6,396.0 ns | 3.71 ns | 1,725× | 99.94% |
+| `clone(50×50)` | 180.29 µs | 3.69 ns | 48,889× | 99.998% |
+
+**Verification**: All 120 tests pass. Code matches commit exactly.
 
 **Current Implementation Problem**:
 ```rust
@@ -2033,58 +2367,7 @@ push() {
 - `push(depth=50)`: 38.8µs → **~50ns** (**776×** improvement!)
 - `clone(50×50)`: 177µs → **~5ns** (**35,400×** improvement!)
 
-### 9.5 Proposed Implementation
-
-```rust
-use im::HashMap as PersistentHashMap;
-use std::rc::Rc;
-
-struct Node<T> {
-    map: PersistentHashMap<String, (T, SourceSpan)>,
-    parent: Option<Rc<Node<T>>>,
-}
-
-#[derive(Clone)]
-pub struct BoundMapChain<T> {
-    head: Option<Rc<Node<T>>>,  // Clone is O(1) - just Rc increment!
-}
-
-impl<T: Clone> BoundMapChain<T> {
-    pub fn push(&self) -> Self {
-        BoundMapChain {
-            head: Some(Rc::new(Node {
-                map: PersistentHashMap::new(),
-                parent: self.head.clone(),  // O(1) Rc clone
-            }))
-        }
-    }
-
-    pub fn put_span(&self, binding: IdContextSpan<T>) -> Self {
-        match &self.head {
-            None => self.clone(),
-            Some(node) => BoundMapChain {
-                head: Some(Rc::new(Node {
-                    map: node.map.update(binding.0, (binding.1, binding.2)),
-                    parent: node.parent.clone(),  // Share parent chain - O(1)!
-                }))
-            }
-        }
-    }
-
-    pub fn find(&self, name: &str) -> Option<&(T, SourceSpan)> {
-        let mut current = self.head.as_ref();
-        while let Some(node) = current {
-            if let Some(value) = node.map.get(name) {
-                return Some(value);
-            }
-            current = node.parent.as_ref();
-        }
-        None
-    }
-}
-```
-
-### 9.6 Verification Strategy
+### 9.5 Verification Strategy
 
 1. **Unit Tests**: Verify all BoundMapChain tests pass
 2. **Scope Nesting Tests**: Test deep nesting (depth=100) for correctness and performance
@@ -2146,9 +2429,21 @@ See `docs/performance/optimization-summary.md` for complete analysis.
 
 ### 10.1 Context and Implementation Status
 
-**Status**: PROPOSED (Not yet implemented)
+**Status**: ✅ IMPLEMENTED AND VERIFIED
+**Commit**: 985863b8
+**Date**: 2025-11-06
 **Target Files**: `rholang/src/rust/interpreter/env.rs`
 **Optimization**: Replace `HashMap<i32, A>` with `im::HashMap` for structural sharing
+
+**Performance Results**:
+
+| Operation | Baseline | Optimized | Speedup | Improvement |
+|-----------|----------|-----------|---------|-------------|
+| `put(100)` | 7.145 µs | 201.33 ns | 35.5× | 97.18% |
+| `shift(100)` | 7.117 µs | 33.18 ns | 214× | 99.53% |
+| `clone(500)` | 43.32 µs | 31.32 ns | 1,383× | 99.93% |
+
+**Verification**: All 120 tests pass. Code matches commit exactly.
 
 **Current Implementation Problem**:
 ```rust
@@ -2260,43 +2555,7 @@ put(value) {
 
 **Expected Speedup**: For n=100: 7.15µs → **~100ns** (**71×** improvement)
 
-### 10.5 Proposed Implementation
-
-```rust
-use im::HashMap as PersistentHashMap;
-
-#[derive(Clone, Debug)]
-pub struct Env<A> {
-    env_map: PersistentHashMap<i32, A>,
-    level: i32,
-    shift: i32,
-}
-
-impl<A: Clone> Env<A> {
-    pub fn put(&self, a: A) -> Env<A> {  // Note: now takes &self, not &mut self
-        Env {
-            env_map: self.env_map.update(self.level, a),  // O(log n) structural sharing
-            level: self.level + 1,
-            shift: self.shift,
-        }
-    }
-
-    pub fn get(&self, level: &i32) -> Option<&A> {
-        let adjusted_level = level - self.shift;
-        self.env_map.get(&adjusted_level)
-    }
-
-    pub fn shift(&self, by: i32) -> Env<A> {
-        Env {
-            env_map: self.env_map.clone(),  // O(1) with structural sharing
-            level: self.level,
-            shift: self.shift + by,
-        }
-    }
-}
-```
-
-### 10.6 Verification Strategy
+### 10.5 Verification Strategy
 
 1. **Unit Tests**: Verify all Env tests pass
 2. **De Bruijn Tests**: Test correct variable resolution with deep nesting
@@ -2879,7 +3138,7 @@ Once state isolation is correct, we can safely add memoization:
 
 **Key Insight**: This demonstrates the importance of understanding WHY reference implementations make certain design choices. The Scala code's `isolateState` wrapper wasn't just a stylistic choice - it was a critical correctness requirement that the Rust port overlooked.
 
-### 11.6 Code Validation
+### 11.15 Code Validation
 
 **Commit**: 843268ae
 **Files Modified**: `rholang/src/rust/interpreter/matcher/list_match.rs`
