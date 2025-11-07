@@ -143,11 +143,36 @@ Plus metadata:
 ### Sequence Operations
 
 - **[  ]**: Empty sequence
-- **[a]**: Singleton sequence  
+- **[a]**: Singleton sequence
 - **[a₁, a₂, ..., aₙ]**: Sequence of n elements
+- **x :: s**: Cons operator - prepends element x to sequence s
+  - Example: 1 :: [2, 3] = [1, 2, 3]
+  - Properties: x :: [] = [x], x :: (y :: s) = [x, y, ...s]
 - **s₁ ++ s₂**: Concatenation of sequences
+  - For s₁ = [a₁, ..., aₙ] and s₂ = [b₁, ..., bₘ]: s₁ ++ s₂ = [a₁, ..., aₙ, b₁, ..., bₘ]
+  - Properties:
+    - [] ++ s = s (left identity)
+    - s ++ [] = s (right identity)
+    - (s₁ ++ s₂) ++ s₃ = s₁ ++ (s₂ ++ s₃) (associativity)
 - **reverse(s)**: Reversal of sequence s
+  - reverse([a₁, ..., aₙ]) = [aₙ, ..., a₁]
 - **|s|**: Length of sequence s
+
+### Fold Operations
+
+**Definition (Left Fold)**: For function f: (B, A) → B, initial accumulator b₀: B, and sequence of elements:
+
+```
+fold_left(f, b₀, []) = b₀                                          [base case]
+fold_left(f, b₀, x :: s) = fold_left(f, f(b₀, x), s)              [recursive case]
+```
+
+Equivalently for explicit sequences:
+```
+fold_left(f, b₀, [a₁, a₂, ..., aₙ]) = f(...f(f(b₀, a₁), a₂)..., aₙ)
+```
+
+Example: fold_left(+, 0, [1, 2, 3]) = ((0 + 1) + 2) + 3 = 6
 
 ### Complexity Notation
 
@@ -327,12 +352,14 @@ fold_left(f, σ, s₁ ++ s₂) = fold_left(f, fold_left(f, σ, s₁), s₂)
 
 Therefore, fold_left(f, σ, [] ++ s₂) = fold_left(f, fold_left(f, σ, []), s₂). ✓
 
-**Inductive Case**: Assume lemma holds for s₁, prove for x :: s₁ (where x :: s₁ means cons of x onto s₁)
+**Inductive Case**: Assume lemma holds for s₁, prove for x :: s₁
 
-Inductive Hypothesis (IH):
+Inductive Hypothesis (IH) - **with universal quantification over initial states**:
 ```
-fold_left(f, σ, s₁ ++ s₂) = fold_left(f, fold_left(f, σ, s₁), s₂)
+∀ initial state σ': fold_left(f, σ', s₁ ++ s₂) = fold_left(f, fold_left(f, σ', s₁), s₂)
 ```
+
+**Note**: The universal quantification ∀σ' is critical - it allows us to apply the IH with any initial state, not just the original σ.
 
 Prove:
 ```
@@ -737,17 +764,30 @@ accumulated_vec.reverse()                       [O(M) - single pass swap]
 
 Total cost T_extend_reverse:
 ```
-T_extend_reverse = O(M) + O(M) = O(2M) = O(M) = O(n·m) = O(n)  [when m is constant]
+T_extend_reverse = O(M) + O(M) = O(2M) = O(M)
+where M = Σᵢ₌₁ⁿ mᵢ = total elements across all operations
 ```
 
-**Comparison**:
-```
-T_prepend / T_extend_reverse = O(n²) / O(n) = O(n)
-```
+**Comparison (Asymptotic Complexity)**:
 
-For n=50,000 operations: theoretical speedup ≈ 50,000× (empirical: 6,158× due to constant factors)
+Let M = total elements. Two cases:
 
-∴ Improvement: O(n²) → O(n). ∎
+**Case 1** (Uniform element size): If all mᵢ = m (constant):
+- M = n·m
+- T_prepend = O(m · n²/2) = O(n²·m) = O(n²) [treating m as constant w.r.t. n]
+- T_extend_reverse = O(M) = O(n·m) = O(n) [treating m as constant w.r.t. n]
+- Speedup factor: O(n)
+
+**Case 2** (Variable element size): If mᵢ varies with i:
+- T_prepend = O(n·M) [worst case: each operation shifts all prior elements]
+- T_extend_reverse = O(M) [linear in total elements]
+- Speedup factor: O(n)
+
+**Conclusion**: In both cases, the optimization provides an **O(n) speedup factor** for n normalization operations.
+
+For n=50,000 operations: theoretical speedup ≈ 50,000× (empirical: 6,158× due to constant factors and cache effects)
+
+∴ Improvement: O(n²·m) → O(n·m) or equivalently O(n·M) → O(M), representing an O(n) factor improvement. ∎
 
 **Empirical**:
 
@@ -1037,6 +1077,13 @@ For any subset T ⊆ S, construct mask m as follows:
 For i ∈ [0, n): bit i of m = 1 ⟺ sᵢ ∈ T
 ```
 
+**Proof that m ∈ [0, 2ⁿ)**:
+The mask m has binary representation m = Σᵢ₌₀ⁿ⁻¹ bᵢ·2ⁱ where bᵢ ∈ {0,1}.
+Since each bᵢ is either 0 or 1:
+- Minimum value: m = 0 (all bits = 0)
+- Maximum value: m = Σᵢ₌₀ⁿ⁻¹ 1·2ⁱ = 2ⁿ - 1 (all bits = 1)
+- Therefore: 0 ≤ m ≤ 2ⁿ-1, which means m ∈ [0, 2ⁿ) ✓
+
 This gives a unique mask m ∈ [0, 2ⁿ). By definition of φ:
 ```
 φ(m) = {sᵢ | bit i of m = 1}
@@ -1057,14 +1104,22 @@ Therefore, filtering by popcount(m) ∈ [min, max] is equivalent to filtering by
 
 **Conclusion**: φ is a bijection between bitmasks [0, 2ⁿ) and subsets 𝒫(S). When both are filtered by size constraints [min, max], they produce identical sets of valid subsets. ∎
 
-**Lemma 6.2** (Cartesian Product Commutativity):
-For multisets A, B, C, D:
-```
-(A × B) ∪ (C × D) ≡ (A ∪ C) × (B ∪ D)  [distributivity]
-A × B ≡ B × A  [commutativity up to tuple order]
-```
+**Lemma 6.2** (Cartesian Product Properties):
+For multisets A, B:
 
-For lazy evaluation, order of iteration through cartesian product doesn't affect the multiset of generated tuples. □
+**Property 1** (Cardinality): |A × B| = |A| · |B|
+
+**Property 2** (Iteration Order Independence): For lazy evaluation, the order of iteration through a cartesian product doesn't affect the **multiset** of generated tuples (though it affects generation order).
+- Eager: Materializes all |A| · |B| tuples in some fixed order
+- Lazy: Generates all |A| · |B| tuples on demand in potentially different order
+- Both produce the same multiset of tuples
+
+**Note**: Cartesian product is NOT commutative in the strict sense (A × B ≠ B × A as sets), since:
+- A × B = {(a,b) | a ∈ A, b ∈ B}
+- B × A = {(b,a) | b ∈ B, a ∈ A}
+- These are different sets with different element types.
+
+However, |A × B| = |B × A| (cardinality preserved), which is sufficient for complexity analysis. □
 
 **Main Proof of Theorem 6.1**:
 
@@ -1543,18 +1598,45 @@ Old implementation:
 ```
 
 New implementation (with size caching):
-```
-1. Cache size ← t.encoded_len()  [O(1) operation]
-2. substitute(t, d, E) → Err(e)  [t moved]
-3. Charge cost(size)  [use cached value]
-4. Return Err(e)
+```rust
+// Actual implementation in substitute.rs (Phase 1)
+pub fn substitute_with_cost(
+    &mut self,
+    term: Par,
+    depth: i32,
+    env: &Env<Par>
+) -> Result<Par, InterpretError> {
+    // Cache size BEFORE moving term (critical for error case)
+    let cached_size = term.encoded_len();  // O(1) with protobuf size cache
+
+    match self.substitute(term, depth, env) {  // Move term here
+        Ok(subst_term) => {
+            // Success case: measure result and charge
+            self.cost.charge(
+                Cost::create_from_generic(&subst_term, "substitution")
+            )?;
+            Ok(subst_term)
+        }
+        Err(th) => {
+            // Error case: use cached size since term was moved
+            self.cost.charge(
+                Cost::create_from_size(cached_size, "substitution")
+            )?;
+            Err(th)
+        }
+    }
+}
 ```
 
 **Subclaim 2.1**: Error value is identical
 Proof: Both return the same error e from substitute. ∎
 
 **Subclaim 2.2**: Cost charged is identical
-Proof: size = t.encoded_len() by direct measurement in new version, and size = t₂.encoded_len() where t₂ is clone of t in old version. By Lemma 7.1, these are equal. ∎
+Proof:
+- New version: charges Cost::create_from_size(cached_size, ...) where cached_size = t.encoded_len() before move
+- Old version: charges cost based on t₂.encoded_len() where t₂ is clone of t
+- By Lemma 7.1: t.encoded_len() = t₂.encoded_len() (cloning preserves encoded size)
+- Therefore: costs are identical ∎
 
 Therefore Case 2 holds.
 
@@ -1772,16 +1854,57 @@ Assume theorem holds for all subterms T₁, T₂, ..., Tₖ (Inductive Hypothesi
 
    By Inductive Hypothesis and Theorem 7.2: New structures are identical ✓
 
-8. **T = Expr{...}**, **Bundle{...}**, **Connective{...}**, etc.:
+8. **Meta-Theorem for Remaining AST Node Types**:
 
-   For each remaining process type T with subterms s₁, s₂, ..., sₖ:
+   **Theorem 7.3.1** (Compositional Substitution Equivalence):
+   For any Rholang AST node type T with constructor T(field₁: T₁, ..., fieldₖ: Tₖ) where each fieldᵢ is either:
+   - A process term (recursively substitutable), or
+   - A primitive value (unchanged by substitution), or
+   - A collection of process terms
 
-   Old: T { field₁: substitute_old(s₁.clone(), d, E), ..., fieldₖ: substitute_old(sₖ.clone(), d, E) }
-   New: T { field₁: substitute_new(s₁, d, E), ..., fieldₖ: substitute_new(sₖ, d, E) }
+   If the Inductive Hypothesis holds for all process term subfields, then substitution equivalence holds for T.
 
-   By Inductive Hypothesis on all subterms sᵢ: structures are identical ✓
+   **Proof of Meta-Theorem**:
 
-**Conclusion**: By structural induction, substitution output is preserved for all terms. ∎
+   Old implementation:
+   ```rust
+   T {
+       field₁: if is_process(field₁) then substitute_old(field₁.clone(), d, E) else field₁,
+       field₂: if is_process(field₂) then substitute_old(field₂.clone(), d, E) else field₂,
+       ...
+       fieldₖ: if is_process(fieldₖ) then substitute_old(fieldₖ.clone(), d, E) else fieldₖ,
+   }
+   ```
+
+   New implementation:
+   ```rust
+   T {
+       field₁: if is_process(field₁) then substitute_new(field₁, d, E) else field₁,
+       field₂: if is_process(field₂) then substitute_new(field₂, d, E) else field₂,
+       ...
+       fieldₖ: if is_process(fieldₖ) then substitute_new(fieldₖ, d, E) else fieldₖ,
+   }
+   ```
+
+   For each process field i:
+   - By IH: substitute_old(fieldᵢ.clone(), d, E) ≡ substitute_new(fieldᵢ, d, E)
+   - By Theorem 7.2: clone() doesn't affect semantic value
+
+   For each non-process field i:
+   - Both implementations: fieldᵢ (unchanged)
+
+   Therefore: All fields are structurally equal ⇒ T nodes are structurally equal. ∎
+
+   **Remaining Node Types Covered**:
+   This meta-theorem applies to all Rholang AST nodes not explicitly proven above:
+   - **Expr** (expressions): Contains subprocesses that need substitution
+   - **Bundle** (channel bundles): Contains channel processes
+   - **Connective** (logical connectives): Contains subprocesses
+   - **GPrivate** (unforgeable names): Primitive (no substitution needed)
+   - **Var** (variables): Subject to substitution (base case of recursion)
+   - **Ground** types (integers, strings, etc.): Primitives (unchanged)
+
+**Conclusion**: By structural induction over all cases (1-7 explicit + meta-theorem for 8), substitution output is preserved for all Rholang AST terms. ∎
 
 ---
 
