@@ -87,7 +87,7 @@ impl ParCount {
         }
     }
 
-    pub fn min_max_par(&self, par: Par) -> (ParCount, ParCount) {
+    pub fn min_max_par(&self, par: &Par) -> (ParCount, ParCount) {
         let pc = ParCount::new(no_frees(par.clone()));
         let wildcard: bool = par.exprs.iter().any(|expr| match &expr.expr_instance {
             Some(EVarBody(EVar { v })) => match v.as_ref().unwrap().var_instance {
@@ -105,16 +105,16 @@ impl ParCount {
         par.connectives
             .iter()
             .fold((min_init, max_init), |(min, max), con| {
-                let (cmin, cmax) = self.min_max_con(con.clone());
+                let (cmin, cmax) = self.min_max_con(con);
                 (min.add(&cmin), max.add(&cmax))
             })
     }
 
-    pub fn min_max_con(&self, con: Connective) -> (ParCount, ParCount) {
-        match con.connective_instance {
+    pub fn min_max_con(&self, con: &Connective) -> (ParCount, ParCount) {
+        match &con.connective_instance {
             Some(ConnAndBody(ConnectiveBody { ps })) => {
                 let p_min_max: Vec<(ParCount, ParCount)> =
-                    ps.iter().map(|p| self.min_max_par(p.clone())).collect();
+                    ps.iter().map(|p| self.min_max_par(p)).collect();
 
                 let min = p_min_max
                     .iter()
@@ -127,7 +127,7 @@ impl ParCount {
 
             Some(ConnOrBody(ConnectiveBody { ps })) => {
                 let p_min_max: Vec<(ParCount, ParCount)> =
-                    ps.iter().map(|p| self.min_max_par(p.clone())).collect();
+                    ps.iter().map(|p| self.min_max_par(p)).collect();
 
                 let min = p_min_max
                     .iter()
