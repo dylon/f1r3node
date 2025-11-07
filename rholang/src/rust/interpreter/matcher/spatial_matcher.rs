@@ -233,7 +233,7 @@ impl SpatialMatcher<Par, Par> for SpatialMatcherContext {
             let individual_bounds: Vec<(ParCount, ParCount)> = filtered_pattern
                 .connectives
                 .iter()
-                .map(|con| pc.min_max_con(con.clone()))
+                .map(|con| pc.min_max_con(con))
                 .collect();
             // println!("\nindividual_bounds: {:?}", individual_bounds);
 

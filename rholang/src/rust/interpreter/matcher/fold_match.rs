@@ -56,7 +56,7 @@ impl FoldMatch<Par, Par> for SpatialMatcherContext {
                 // println!("prem: {:?}", prem);
                 // println!("\np: {:?}", p);
 
-                self.spatial_match(t.to_owned(), p.to_owned())
+                self.spatial_match(t.clone(), p.clone())
                     .and_then(|_| self.fold_match(trem.to_vec(), prem.to_vec(), remainder))
             }
         }
@@ -107,7 +107,7 @@ impl FoldMatch<MatchCase, MatchCase> for SpatialMatcherContext {
             },
 
             ([t, trem @ ..], [p, prem @ ..]) => self
-                .spatial_match(t.to_owned(), p.to_owned())
+                .spatial_match(t.clone(), p.clone())
                 .and_then(|_| self.fold_match(trem.to_vec(), prem.to_vec(), remainder)),
         }
     }
