@@ -49,6 +49,7 @@ validated = "1.0.0"
 smallvec = { version = "1.15.1", features = ["union", "const_generics", "const_new", "may_dangle"] }
 typed-arena = "2.0.2"
 stacker = "0.1"
+im = "15.1.0"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
@@ -66,4 +67,8 @@ harness = false
 
 [[bench]]
 name = "substitution_benchmark"
+harness = false
+
+[[bench]]
+name = "environment_benchmark"
 harness = false
