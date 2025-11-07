@@ -126,9 +126,21 @@ macro_rules! list_match {
 
                 // println!("\nlist_match all_patterns: {:?}", all_patterns);
 
-                let mut cloned_self = self.clone();
-                let _match_function = Box::new(move |pattern, t| cloned_self.match_function(pattern, t));
-                // NOTE: Bypassing 'memoizeInHashMap' here
+                // State isolation: Clone context for each invocation to prevent state contamination
+                // See Scala's isolateState wrapper (SpatialMatcher.scala:279-287)
+                let cloned_self = self.clone();
+                let _match_function = Box::new(move |pattern: Pattern<$type>, t: $type| -> Option<FreeMap> {
+                    // Create fresh context for this match attempt (state isolation)
+                    let mut isolated_context = cloned_self.clone();
+
+                    // Run match (may mutate isolated_context.free_map)
+                    let result = isolated_context.match_function(pattern, t);
+
+                    // Return captured bindings if match succeeded, None otherwise
+                    // isolated_context is dropped here, ensuring no state leakage
+                    result
+                });
+                // NOTE: Bypassing 'memoizeInHashMap' here (will be added in Phase 4.2 after state isolation is proven correct)
                 let mut maximum_bipartite_match: MaximumBipartiteMatch<Pattern<$type>, $type, FreeMap> = MaximumBipartiteMatch::new(_match_function);
 
                 // println!("\ncurrent free_map: {:?}", self.free_map);
