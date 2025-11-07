@@ -10,19 +10,10 @@ fn compute_hash<T: Hash>(t: &T) -> u64 {
     hasher.finish()
 }
 
-#[derive(Clone, Debug, Hash)]
+#[derive(Clone, Debug)]
 pub enum Pattern<T: Clone> {
     Term(T),
     Remainder(i32),
-}
-
-impl<T: Clone> Pattern<T> {
-    fn to_hash_key(&self) -> u64
-    where
-        T: Hash,
-    {
-        compute_hash(self)
-    }
 }
 
 pub trait ListMatch<T: Clone> {
@@ -147,45 +138,18 @@ macro_rules! list_match {
                 // State isolation: Clone context for each invocation to prevent state contamination
                 // See Scala's isolateState wrapper (SpatialMatcher.scala:279-287)
                 let cloned_self = self.clone();
-
-                // Memoization cache (closure-local, dropped when list_match returns)
-                // Phase 4.2: Hash-based memoization for pattern matching
-                let memo_cache: std::cell::RefCell<std::collections::HashMap<(u64, u64), Option<FreeMap>>> =
-                    std::cell::RefCell::new(std::collections::HashMap::new());
-
                 let _match_function = Box::new(move |pattern: Pattern<$type>, t: $type| -> Option<FreeMap> {
-                    // Compute cache key using hashes
-                    use std::hash::{Hash, Hasher};
-                    use std::collections::hash_map::DefaultHasher;
-
-                    let mut pattern_hasher = DefaultHasher::new();
-                    pattern.hash(&mut pattern_hasher);
-                    let pattern_hash = pattern_hasher.finish();
-
-                    let mut target_hasher = DefaultHasher::new();
-                    t.hash(&mut target_hasher);
-                    let target_hash = target_hasher.finish();
-
-                    let cache_key = (pattern_hash, target_hash);
-
-                    // Check cache first (memoization)
-                    if let Some(cached_result) = memo_cache.borrow().get(&cache_key) {
-                        return cached_result.clone();
-                    }
-
-                    // Cache miss: Create fresh context for this match attempt (state isolation)
+                    // Create fresh context for this match attempt (state isolation)
                     let mut isolated_context = cloned_self.clone();
 
                     // Run match (may mutate isolated_context.free_map)
                     let result = isolated_context.match_function(pattern, t);
 
-                    // Cache the result before returning
-                    memo_cache.borrow_mut().insert(cache_key, result.clone());
-
                     // Return captured bindings if match succeeded, None otherwise
                     // isolated_context is dropped here, ensuring no state leakage
                     result
                 });
+                // NOTE: Bypassing 'memoizeInHashMap' here (will be added in Phase 4.2 after state isolation is proven correct)
                 let mut maximum_bipartite_match: MaximumBipartiteMatch<Pattern<$type>, $type, FreeMap> = MaximumBipartiteMatch::new(_match_function);
 
                 // println!("\ncurrent free_map: {:?}", self.free_map);
