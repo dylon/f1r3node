@@ -1,12 +1,12 @@
 use super::free_context::FreeContext;
 use super::id_context::{IdContextPos, IdContextSpan};
 use models::rhoapi::connective::ConnectiveInstance;
-use std::collections::HashMap;
+use im::HashMap as PersistentHashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FreeMap<T: Clone> {
     pub next_level: usize,
-    pub level_bindings: HashMap<String, FreeContext<T>>,
+    pub level_bindings: PersistentHashMap<String, FreeContext<T>>,
     pub wildcards: Vec<rholang_parser::SourceSpan>,
     pub connectives: Vec<(ConnectiveInstance, rholang_parser::SourceSpan)>,
 }
@@ -15,7 +15,7 @@ impl<T: Clone> FreeMap<T> {
     pub fn new() -> Self {
         FreeMap {
             next_level: 0,
-            level_bindings: HashMap::new(),
+            level_bindings: PersistentHashMap::new(),
             wildcards: Vec::new(),
             connectives: Vec::new(),
         }

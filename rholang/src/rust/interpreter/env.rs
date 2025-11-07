@@ -1,9 +1,9 @@
-use std::collections::HashMap;
+use im::HashMap as PersistentHashMap;
 
 // See rholang/src/main/scala/coop/rchain/rholang/interpreter/Env.scala
 #[derive(Clone, Debug)]
 pub struct Env<A: Clone> {
-    pub env_map: HashMap<i32, A>,
+    pub env_map: PersistentHashMap<i32, A>,
     pub level: i32,
     pub shift: i32,
 }
@@ -11,7 +11,7 @@ pub struct Env<A: Clone> {
 impl<A: Clone> Env<A> {
     pub fn new() -> Env<A> {
         Env {
-            env_map: HashMap::new(),
+            env_map: PersistentHashMap::new(),
             level: 0,
             shift: 0,
         }
