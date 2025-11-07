@@ -72,3 +72,7 @@ harness = false
 [[bench]]
 name = "environment_benchmark"
 harness = false
+
+[[bench]]
+name = "casper_benchmark"
+harness = false
