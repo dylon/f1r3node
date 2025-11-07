@@ -189,23 +189,57 @@ pub fn put(&mut self, k: i32, t: Par) {
 
 ## MEDIUM PRIORITY
 
-### 6. **ListMatch Context Cloning**
+### 6. ✅ **ListMatch State Isolation** (COMPLETED - Phase 4.1)
 
 **Location**: `rholang/src/rust/interpreter/matcher/list_match.rs:128-149`
 
-**Problem**: Clones entire matcher context for match function
+**Problem**: CRITICAL BUG - Missing state isolation caused non-deterministic matcher behavior
 
 ```rust
-// Line 129
-let mut cloned_self = self.clone();  // Entire context!
-
-// Line 56: Comment notes missing memoization
-// NOTE: Bypassing 'memoizeInHashMap' here
+// BROKEN (before fix):
+let mut cloned_self = self.clone();
+let _match_function = Box::new(move |pattern, t| cloned_self.match_function(pattern, t));
+// Single mutable context shared across all invocations - STATE CONTAMINATION!
 ```
 
-**Recommended Fix**: Implement memoization, use interior mutability
+**Status**: COMPLETED 2025-11-06
+- Implemented Scala's `isolateState` pattern (SpatialMatcher.scala:279-287)
+- Creates fresh context per match invocation to prevent state leakage
+- Ensures referential transparency required for correctness
+- All 32 matcher tests pass
+- **Bug Severity**: CRITICAL - Would cause incorrect pattern matching results
+- **Fix Type**: Correctness (not performance optimization)
+- See Proof 11 in `docs/performance/optimization-equivalence-proofs.md`
 
-**Effort**: Medium (2-3 days) | **Expected Speedup**: 2-3x
+**Impact**: Bug fix (correctness), no significant performance impact expected
+
+---
+
+### 6b. **ListMatch Memoization** (DEFERRED - Phase 4.2)
+
+**Location**: `rholang/src/rust/interpreter/matcher/list_match.rs:128-149`
+
+**Problem**: Recomputes identical matches multiple times (performance, not correctness)
+
+```rust
+// Line 143: Comment notes missing memoization
+// NOTE: Bypassing 'memoizeInHashMap' here (will be added in Phase 4.2 after state isolation is proven correct)
+```
+
+**Status**: DEFERRED pending profiling data
+- **Documentation**: Complete (see Proof 12 in optimization-equivalence-proofs.md)
+- **Implementation**: Not started
+- **Reason for Deferral**: Must prove list_match is a bottleneck first (data-driven optimization)
+- **Decision Criteria**: Only implement if profiling shows >10% time spent in list_match
+
+**Recommended Fix**: Implement closure-local memoization cache with hash-based keys
+
+**Effort**: Medium (2-3 days) | **Expected Speedup**: 2-10x (for patterns with repeated substructure), <5% overhead otherwise
+
+**Next Steps**:
+1. Profile real-world Rholang contracts
+2. Measure time spent in list_match
+3. Decide: implement if bottleneck confirmed, skip otherwise
 
 ---
 
@@ -358,7 +392,8 @@ For each optimization:
 | 3 | BoundMapChain | Chain cloning | High | Medium | 3-5x |
 | 4 | FreeMap | HashMap cloning | High | Medium | 3-5x |
 | 5 | Env | Clone per put | Med-High | Low-Med | 2-4x |
-| 6 | list_match | Context clone | Medium | Medium | 2-3x |
+| 6 ✅ | list_match (isolation) | State contam BUG | **CRITICAL** | Low | **Bug fix** |
+| 6b ⏭️ | list_match (memo) | Context clone | Medium | Medium | 2-10x (deferred) |
 | 7 | MaxBipartite | BTreeMap ops | Medium | Medium | 1.5-3x |
 | 8 | spatial_matcher | Bounds recomp | Medium | Low-Med | 1.5-2x |
 | 9 ✅ | par_count | Repeated clones | Medium | Low | 1.5-2x |
