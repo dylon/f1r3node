@@ -1,5 +1,14 @@
 use models::{rhoapi::Par, rust::utils::FreeMap};
-use std::collections::HashSet;
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
+use std::hash::{Hash, Hasher};
+use std::collections::hash_map::DefaultHasher;
+
+fn compute_hash<T: Hash>(t: &T) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    t.hash(&mut hasher);
+    hasher.finish()
+}
 
 #[derive(Clone, Debug)]
 pub enum Pattern<T: Clone> {
