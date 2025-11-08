@@ -808,15 +808,62 @@ For n=50,000 operations: theoretical speedup ≈ 50,000× (empirical: 6,158× du
 ```rust
 for proc in all_procs {
     let proc_input = ProcVisitInputs {
-        par: accumulated_par,
+        par: accumulated_par,  // ← Passes ALL previously accumulated elements as input
         free_map: accumulated_free_map,
         bound_map_chain: bound_map_chain.clone(),
     };
     let proc_result = normalize_ann_proc(proc, proc_input, env, parser)?;
-    accumulated_par = proc_result.par;  // Repeatedly prepends to growing Par
+    accumulated_par = proc_result.par;  // Result contains old + new elements
     accumulated_free_map = proc_result.free_map;
 }
 ```
+
+**Why This is O(n²) - The Hidden Prepending Mechanism**:
+
+The line `accumulated_par = proc_result.par` appears to be simple O(1) assignment, but the complexity is hidden inside `normalize_ann_proc()`. Here's what actually happens:
+
+1. **`accumulated_par` is passed as INPUT** containing all previously normalized elements:
+   ```rust
+   let proc_input = ProcVisitInputs {
+       par: accumulated_par,  // ← Contains m₁ + m₂ + ... + mᵢ₋₁ accumulated elements
+   };
+   ```
+
+2. **Inside `normalize_ann_proc()`, new elements are PREPENDED to the front of each vector**:
+   ```rust
+   // Conceptual view of what happens inside normalize_ann_proc()
+   result.sends = new_sends ++ inputs.par.sends        // [new₁, new₂, ...] ++ [old₁, old₂, ...]
+   result.receives = new_receives ++ inputs.par.receives
+   result.news = new_news ++ inputs.par.news
+   // ... same for all 8 Par vector fields
+   ```
+
+3. **The `++` (concatenation) operation requires copying ALL accumulated elements**:
+   - To prepend mᵢ new elements to a vector with n accumulated elements:
+     - Allocate new vector of size (mᵢ + n)
+     - Copy mᵢ new elements
+     - Copy n accumulated elements  ← **This grows with each iteration!**
+     - Cost: O(mᵢ + n) = O(n) where n = accumulated size
+
+**Iteration-by-Iteration Cost Analysis**:
+
+- **Iteration 1**: `accumulated_par` has 0 elements, add m₁ new → Copy 0 + m₁ = **O(m₁)**
+- **Iteration 2**: `accumulated_par` has m₁ elements, add m₂ new → Copy m₁ + m₂ = **O(m₁ + m₂)**
+- **Iteration 3**: `accumulated_par` has (m₁ + m₂) elements, add m₃ new → Copy (m₁ + m₂) + m₃ = **O(m₁ + m₂ + m₃)**
+- **Iteration i**: `accumulated_par` has ∑ⱼ₌₁ⁱ⁻¹ mⱼ elements, add mᵢ new → **Cost O(∑ⱼ₌₁ⁱ mⱼ)**
+
+**Total Cost** (summing costs across all n iterations):
+```
+T_prepend = Σᵢ₌₁ⁿ (∑ⱼ₌₁ⁱ mⱼ)
+         = m₁ + (m₁ + m₂) + (m₁ + m₂ + m₃) + ... + (m₁ + ... + mₙ)
+         = n·m₁ + (n-1)·m₂ + (n-2)·m₃ + ... + 1·mₙ
+         = Σᵢ₌₁ⁿ (n - i + 1)·mᵢ
+         = O(n²·m)  where m is average elements per iteration
+```
+
+**Key Insight**: Each iteration must copy ALL previously accumulated elements, leading to quadratic growth. This is the classic "repeated prepending to a growing list" antipattern.
+
+---
 
 **After** (O(n) accumulator pattern):
 ```rust
@@ -830,11 +877,15 @@ let mut bundles_acc = Vec::new();
 let mut connectives_acc = Vec::new();
 
 for proc in all_procs.iter().rev() {  // Reverse iteration
-    let proc_input = ProcVisitInputs { /* ... */ };
+    let proc_input = ProcVisitInputs {
+        par: Par::default(),  // ← EMPTY Par, not accumulated result!
+        free_map: FreeMap::default(),
+        bound_map_chain: bound_map_chain.clone(),
+    };
     let proc_result = normalize_ann_proc(proc, proc_input, env, parser)?;
 
-    // Extend accumulators instead of prepending
-    sends_acc.extend(proc_result.par.sends);
+    // Extend accumulators - appending to end, not prepending to front
+    sends_acc.extend(proc_result.par.sends);        // O(mᵢ) amortized
     receives_acc.extend(proc_result.par.receives);
     news_acc.extend(proc_result.par.news);
     exprs_acc.extend(proc_result.par.exprs);
@@ -844,7 +895,7 @@ for proc in all_procs.iter().rev() {  // Reverse iteration
     connectives_acc.extend(proc_result.par.connectives);
 }
 
-// No reversal needed - iteration order handles it
+// No reversal needed - reverse iteration maintains correct order
 let final_par = Par {
     sends: sends_acc,
     receives: receives_acc,
@@ -857,6 +908,64 @@ let final_par = Par {
     locally_free: combined_locally_free,
     connective_used: accumulated_connective_used,
 };
+```
+
+**Why This is O(n) - No Accumulated State Passed as Input**:
+
+The key difference: `normalize_ann_proc()` receives an **EMPTY Par** as input, not the accumulated result.
+
+**Critical Changes**:
+
+1. **Empty input state**:
+   ```rust
+   let proc_input = ProcVisitInputs {
+       par: Par::default(),  // ← ALWAYS EMPTY, contains 0 elements
+   };
+   ```
+
+   Since `inputs.par` is empty, `normalize_ann_proc()` only processes the current `proc`:
+   ```rust
+   // Inside normalize_ann_proc() with empty input
+   result.sends = new_sends ++ []        // No old elements to copy!
+                = new_sends               // Just the new elements
+   ```
+
+2. **Independent accumulators**:
+   - Each iteration produces mᵢ new elements
+   - `extend()` appends to the END of the accumulator vectors
+   - No dependency on previous iterations
+   - No copying of previously accumulated elements
+
+3. **Amortized O(1) append** (Rust Vec growth strategy):
+   - Vec doubles capacity when full
+   - Most appends are O(1), occasional O(n) reallocation
+   - Amortized cost: O(1) per element appended
+
+**Iteration-by-Iteration Cost Analysis**:
+
+- **Iteration 1**: Process proc₁, append m₁ elements → **O(m₁)** amortized
+- **Iteration 2**: Process proc₂, append m₂ elements → **O(m₂)** amortized
+- **Iteration 3**: Process proc₃, append m₃ elements → **O(m₃)** amortized
+- **Iteration i**: Process procᵢ, append mᵢ elements → **O(mᵢ)** amortized
+
+No copying of accumulated elements - each iteration is independent!
+
+**Total Cost**:
+```
+T_extend = Σᵢ₌₁ⁿ O(mᵢ) = O(M)  where M = Σᵢ₌₁ⁿ mᵢ = total elements
+        = O(n·m)  where m is average elements per iteration
+        = O(n)  [treating m as constant w.r.t. n]
+```
+
+**Comparison**:
+- **Old**: Each iteration copies all accumulated elements → O(n²)
+- **New**: Each iteration only processes current elements → O(n)
+- **Speedup Factor**: O(n)
+
+For n=50,000 operations with m=10 average elements:
+- **Old**: ~50,000 × 50,000 × 10 / 2 = 12.5 billion copy operations
+- **New**: ~50,000 × 10 = 500,000 copy operations
+- **Theoretical speedup**: 50,000× (empirical: 6,158× due to constant factors)
 ```
 
 **Verification**: Code matches commit 52da5ee6 exactly. All 120 tests pass in 0.07s (down from 437s).
