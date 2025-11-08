@@ -111,6 +111,18 @@ e8cdd1a7 - Substitution clone reduction Phase 1 (67% memory reduction, ~15-20% s
 - **Par(P, Q)**: Parallel composition of processes P and Q
 - **|P|**: Size of process tree P (number of nodes)
 
+### Semantic Evaluation Notation
+
+- **⟦·⟧**: Semantic evaluation brackets (denotational semantics)
+  - Denotes the **abstract mathematical meaning** or **observable behavior** of an expression, process, or operation
+  - Abstracts away implementation details to focus on what a computation produces, not how it's computed
+  - **Usage patterns**:
+    - `⟦E⟧` = the semantic value/result of expression E
+    - `⟦f(x)⟧` = the observable behavior of function f applied to argument x
+    - `⟦f₁(x)⟧ = ⟦f₂(x)⟧` means implementations f₁ and f₂ are semantically equivalent (produce same results)
+  - Two expressions are semantically equal if `⟦·⟧` produces the same value, even if internal execution differs
+  - This notation is standard in denotational semantics and formal verification
+
 ### Normalization Functions
 
 - **⟦P⟧(σ)**: Normalization of process P with state σ
@@ -1068,6 +1080,84 @@ for case in cases.iter().rev() {
 
 **Change Summary**: Replaced eager recursive subset generation with lazy bitmask-based iterator. Changed memory complexity from O(2^n) to O(1) by generating (Par, Par) pairs on-demand instead of materializing all combinations upfront.
 
+### 6.0 Background - Spatial Pattern Matching Context
+
+**Purpose**: Before diving into the technical optimization, it's essential to understand WHY `sub_pars` exists and what problem it solves in the Rholang interpreter.
+
+#### What is Spatial Pattern Matching?
+
+In Rholang's process calculus, pattern matching occurs in two dimensions:
+
+1. **Structural matching**: Does the pattern structurally match the data? (e.g., `for(@{x, y} <- chan)` matches `chan!({1, 2})`)
+2. **Spatial matching**: Which subset of parallel processes matches the pattern, and which remains?
+
+Spatial matching is unique to process calculi because processes compose in parallel. Consider:
+
+```rholang
+// Channel contains multiple parallel processes:
+target = { x!(1) | x!(2) | for(y <- z) { Nil } | @"hello" }
+
+// Pattern wants to match exactly 2 sends:
+for(a <- x; b <- x) { ... }
+```
+
+The matcher must answer: "Which 2 sends from the 3 available processes should I bind to `a` and `b`?"
+
+This requires **enumerating all possible ways to partition** the target processes into:
+- **Subset**: Processes that match the pattern (used for binding)
+- **Complement**: Remaining processes (left in continuation)
+
+#### Why Sub-Pars (Subset-Complement Pairs)?
+
+A **Par** (parallel composition) in Rholang is a structure containing **7 independent component vectors**:
+
+```rust
+pub struct Par {
+    pub sends: Vec<Send>,           // Send processes: x!(data)
+    pub receives: Vec<Receive>,     // Receive processes: for(x <- chan) { P }
+    pub news: Vec<New>,             // Name creation: new x in { P }
+    pub exprs: Vec<Expr>,           // Expression processes
+    pub matches: Vec<Match>,        // Match processes
+    pub unforgeables: Vec<GUnforgeable>,  // Unforgeable names
+    pub bundles: Vec<Bundle>,       // Bundled processes
+}
+```
+
+When pattern matching, we need to:
+1. **Independently partition each component type**: The matcher might need 2 sends AND 1 receive, so it must enumerate:
+   - All ways to choose 2 sends from `sends` vector
+   - All ways to choose 1 receive from `receives` vector
+   - All ways to choose 0 news from `news` vector
+   - ... (and so on for all 7 components)
+
+2. **Try all combinations**: Since components are independent, we need the **cartesian product** of all per-component subset choices.
+
+**Example**: Suppose we have `Par { sends: [s₁, s₂], receives: [r₁], news: [], ... }` and want to match a pattern requiring 1 send and 1 receive:
+
+Possible subset-complement pairs:
+- Subset: `{sends: [s₁], receives: [r₁], ...}`, Complement: `{sends: [s₂], ...}`
+- Subset: `{sends: [s₂], receives: [r₁], ...}`, Complement: `{sends: [s₁], ...}`
+
+The matcher tries each pair until it finds one where the subset matches the pattern.
+
+#### Why This Optimization Matters
+
+The original implementation generated ALL subset-complement pairs **eagerly** before pattern matching began:
+- For a Par with n total elements across all components: **O(2^n) memory** to store all pairs
+- Example: 20 processes = 1,048,576 pairs materialized in memory
+
+The optimized implementation generates pairs **lazily** using iterators:
+- **O(1) memory**: Only the current pair exists at any time
+- **O(1) time to generate next pair**: Increment bitmask and popcount-filter
+- Pattern matching can **stop early** when a match is found (common case: first few pairs)
+
+**Real-world impact**: Casper blockchain contracts have Pars with 15-25 processes. Lazy evaluation provides:
+- **52.41% speedup** (2.10× faster) on production cascade
+- **72.34% improvement** on Either.rho (3.62× faster)
+- **99.9% memory reduction** (from GBs to bytes for large Pars)
+
+Now that we understand the context, let's formalize the optimization mathematically.
+
 ### 6.2 Formal Definitions
 
 **Definition 6.1** (Power Set and Subsets):
@@ -1088,13 +1178,111 @@ For each T ∈ Subsets(S, min, max), generate pair (T, S\T) where S\T is the com
 sub_pars_eager(par, min, max, min_prune, max_prune) :=
   let S_sends = min_max_subsets(par.sends, send_min, send_max)
   let S_receives = min_max_subsets(par.receives, recv_min, recv_max)
-  ... [5 more components]
+  let S_news = min_max_subsets(par.news, news_min, news_max)
+  let S_exprs = min_max_subsets(par.exprs, exprs_min, exprs_max)
+  let S_matches = min_max_subsets(par.matches, matches_min, matches_max)
+  let S_unforgeables = min_max_subsets(par.unforgeables, unfs_min, unfs_max)
+  let S_bundles = min_max_subsets(par.bundles, bundles_min, bundles_max)
 
-  return S_sends × S_receives × S_news × S_exprs × S_matches × S_unfs × S_bundles
+  return S_sends × S_receives × S_news × S_exprs × S_matches × S_unforgeables × S_bundles
   where × denotes cartesian product, each producing (subset, complement) Par pairs
 ```
 
 The eager `min_max_subsets` recursively generates all valid (subset, complement) pairs and stores them in a Vec before returning.
+
+**Full Implementation of `min_max_subsets`** (from `sub_pars.rs:91-175`):
+```rust
+fn min_max_subsets<A: Clone + std::fmt::Debug>(
+    _as: &Vec<A>,
+    min_size: isize,
+    max_size: isize,
+) -> Vec<(Vec<A>, Vec<A>)> {
+    // Nested helper: generates subsets with counts ≤ max_size
+    fn counted_max_subsets<A: Clone>(
+        _as: Vec<A>,
+        max_size: isize,
+    ) -> Vec<(Vec<A>, Vec<A>, isize)> {
+        match _as.split_first() {
+            None => vec![(_as.to_vec(), _as.to_vec(), 0)],
+            Some((head, rem)) => {
+                let mut results = vec![(_as[0..0].to_vec(), _as.clone(), 0)];
+                let counted_tail = counted_max_subsets(rem.to_vec(), max_size);
+
+                for (mut tail, mut complement, count) in counted_tail {
+                    if count == max_size {
+                        complement.insert(0, head.clone());
+                        results.push((tail, complement, count));
+                    } else if tail.is_empty() {
+                        tail.insert(0, head.clone());
+                        results.push((tail, complement, 1));
+                    } else {
+                        complement.insert(0, head.clone());
+                        tail.insert(0, head.clone());
+                        results.push((tail.clone(), complement.clone(), count));
+                        results.push((tail, complement, count + 1));
+                    }
+                }
+                results
+            }
+        }
+    }
+
+    // Main recursive worker with min/max bounds
+    fn worker<A: Clone + std::fmt::Debug>(
+        _as: Vec<A>,
+        min_size: isize,
+        max_size: isize,
+    ) -> Vec<(Vec<A>, Vec<A>, isize)> {
+        if max_size < 0 {
+            vec![]  // No subsets possible
+        } else if min_size > max_size {
+            vec![]  // Invalid range
+        } else if min_size <= 0 {
+            if max_size == 0 {
+                vec![(_as[0..0].to_vec(), _as.clone(), 0)]
+            } else {
+                counted_max_subsets(_as, max_size)
+            }
+        } else {
+            match _as.split_first() {
+                None => vec![],
+                Some((head, rem)) => {
+                    let decr = min_size - 1;
+                    let mut results = vec![];
+                    let counted_tail = worker(rem.to_vec(), decr, max_size);
+
+                    for (mut tail, mut complement, count) in counted_tail {
+                        if count == max_size {
+                            complement.insert(0, head.clone());
+                            results.push((tail, complement, count));
+                        } else if count == decr {
+                            tail.insert(0, head.clone());
+                            results.push((tail, complement, min_size));
+                        } else {
+                            complement.insert(0, head.clone());
+                            tail.insert(0, head.clone());
+                            results.push((tail.clone(), complement.clone(), count));
+                            results.push((tail, complement, count + 1));
+                        }
+                    }
+                    results
+                }
+            }
+        }
+    }
+
+    worker(_as.to_vec(), min_size, max_size)
+        .iter()
+        .map(|x| (x.0.clone(), x.1.clone()))
+        .collect()
+}
+```
+
+**Key properties**:
+- **Recursive structure**: Handles head element (include vs exclude) then recurses on tail
+- **Triple return**: Each result is (subset, complement, count) for efficient filtering
+- **Two-phase**: `counted_max_subsets` for min ≤ 0, `worker` for min > 0
+- **Memory**: Eagerly materializes ALL subsets in Vec before returning → O(2^n) space
 
 **Definition 6.5** (Lazy Implementation):
 ```
@@ -1108,6 +1296,98 @@ where SubParsIterator uses:
         yield (subset_from_mask(items, mask),
                complement_from_mask(items, mask))
 ```
+
+**Full Implementation of `SubsetIterator`** (from `lazy_sub_pars/subset_iterator.rs:1-119`):
+```rust
+/// Lazily generates all subsets of a slice within size constraints using bitmask enumeration
+pub struct SubsetIterator<'a, T> {
+    items: &'a [T],
+    min_size: usize,
+    max_size: usize,
+    current_mask: usize,  // Counts up from 0
+    max_mask: usize,      // 2^n
+}
+
+impl<'a, T: Clone + Debug> SubsetIterator<'a, T> {
+    pub fn new(items: &'a [T], min_size: isize, max_size: isize) -> Self {
+        let len = items.len();
+
+        // Handle edge cases
+        let (min_size, max_size) = if max_size < 0 || min_size > max_size {
+            (0, 0)  // No valid subsets
+        } else {
+            let min_size = min_size.max(0) as usize;
+            let max_size = max_size.min(len as isize) as usize;
+            (min_size, max_size)
+        };
+
+        // Calculate 2^n (cap at 64 bits to avoid overflow)
+        let max_mask = if len < 64 {
+            1usize << len
+        } else {
+            0  // Empty iterator for len >= 64
+        };
+
+        SubsetIterator {
+            items,
+            min_size,
+            max_size,
+            current_mask: 0,
+            max_mask,
+        }
+    }
+
+    /// Count number of 1 bits in the mask (population count)
+    #[inline]
+    fn popcount(mask: usize) -> usize {
+        mask.count_ones() as usize
+    }
+
+    /// Generate (subset, complement) for given bitmask
+    fn mask_to_subsets(&self, mask: usize) -> (Vec<T>, Vec<T>) {
+        let mut subset = Vec::new();
+        let mut complement = Vec::new();
+
+        for (i, item) in self.items.iter().enumerate() {
+            if (mask & (1 << i)) != 0 {
+                subset.push(item.clone());
+            } else {
+                complement.push(item.clone());
+            }
+        }
+
+        (subset, complement)
+    }
+}
+
+impl<'a, T: Clone + Debug> Iterator for SubsetIterator<'a, T> {
+    type Item = (Vec<T>, Vec<T>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // Iterate through all possible bitmasks
+        while self.current_mask < self.max_mask {
+            let mask = self.current_mask;
+            self.current_mask += 1;
+
+            // Check if this mask represents a valid subset size
+            let subset_size = Self::popcount(mask);
+
+            if subset_size >= self.min_size && subset_size <= self.max_size {
+                return Some(self.mask_to_subsets(mask));
+            }
+        }
+
+        None
+    }
+}
+```
+
+**Key properties**:
+- **Bitmask enumeration**: Iterates mask from 0 to 2^n-1, testing each for valid size
+- **Popcount filtering**: Uses `count_ones()` hardware intrinsic for O(1) size check
+- **O(1) state**: Only stores current mask position, no intermediate vectors
+- **True lazy**: Generates each (subset, complement) pair on-demand when `next()` called
+- **Early termination**: If pattern matcher finds match, iteration stops (saves work)
 
 **Definition 6.6** (Bitmask Encoding):
 For sequence [a₀, a₁, ..., aₙ₋₁] and mask m ∈ [0, 2ⁿ):
@@ -1759,21 +2039,92 @@ Therefore Case 2 holds.
 
 **Phase 1 - Before**:
 ```rust
-// In costs.rs - cost accounting path
-pub fn charge_substitution_cost(par: &Par) -> Result<(), Error> {
-    let sorted_par = sort_par(par.clone());  // Clone 1
-    let cost = calculate_cost(&sorted_par);  // Uses clone internally (Clone 2, 3)
-    // ...
+// File: rholang/src/rust/interpreter/substitute.rs (commit e8cdd1a7^)
+// Main substitution function with cost accounting
+pub fn substitute_and_charge<A>(
+    &self,
+    term: &A,              // Takes reference, requires Clone
+    depth: i32,
+    env: &Env<Par>,
+) -> Result<A, InterpreterError>
+where
+    Self: SubstituteTrait<A>,
+    A: Clone + prost::Message,  // Requires Clone trait
+{
+    match self.substitute(term.clone(), depth, env) {  // Clone 1: term.clone()
+        Ok(subst_term) => {
+            self.cost.charge(Cost::create_from_generic(
+                subst_term.clone(),    // Clone 2: subst_term.clone()
+                "substitution".to_string(),
+            ))?;
+            Ok(subst_term)
+        }
+        Err(th) => {
+            self.cost.charge(Cost::create_from_generic(
+                term.clone(),          // Clone 3: term.clone() in error path
+                "".to_string()
+            ))?;
+            Err(th)
+        }
+    }
+}
+
+// File: rholang/src/rust/interpreter/accounting/costs.rs (commit e8cdd1a7^)
+// Cost creation function requiring ownership
+pub fn create_from_generic<A: prost::Message>(term: A, operation: String) -> Cost {
+    Cost {
+        value: term.encoded_len() as i64,  // Takes ownership, forcing caller to clone
+        operation,
+    }
 }
 ```
 
 **Phase 1 - After**:
 ```rust
-pub fn charge_substitution_cost(par: &Par) -> Result<(), Error> {
-    let cost = calculate_cost_unsorted(par);  // No clone, direct reference
-    // Eliminated 3 clones in accounting path
-    // ...
+// File: rholang/src/rust/interpreter/substitute.rs (commit e8cdd1a7)
+// Optimized: eliminates all 3 clones via move semantics
+pub fn substitute_and_charge<A>(
+    &self,
+    term: A,               // Takes by value (ownership), no Clone required
+    depth: i32,
+    env: &Env<Par>,
+) -> Result<A, InterpreterError>
+where
+    Self: SubstituteTrait<A>,
+    A: prost::Message,     // No Clone trait bound needed
+{
+    match self.substitute(term, depth, env) {  // No clone - moves term
+        Ok(subst_term) => {
+            self.cost.charge(Cost::create_from_generic(
+                &subst_term,           // No clone - passes reference
+                "substitution".to_string(),
+            ))?;
+            Ok(subst_term)
+        }
+        Err(th) => {
+            Err(th)                    // Clone eliminated from error path
+        }
+    }
 }
+
+// File: rholang/src/rust/interpreter/accounting/costs.rs (commit e8cdd1a7)
+// Optimized: accepts reference instead of ownership
+pub fn create_from_generic<A: prost::Message>(term: &A, operation: String) -> Cost {
+    Cost {
+        value: term.encoded_len() as i64,  // Accepts reference, no clone needed
+        operation,
+    }
+}
+
+// File: rholang/src/rust/interpreter/reduce.rs (commit e8cdd1a7)
+// Example of 28 call sites that changed from passing references to passing by value
+// Before:
+let sub_chan = self.substitute.substitute_and_charge(&eval_chan, 0, env)?;
+//                                                    ^ reference (requires clone inside)
+
+// After:
+let sub_chan = self.substitute.substitute_and_charge(eval_chan, 0, env)?;
+//                                                    ^ by value (move, no clone)
 ```
 
 **Phase 2 - ABANDONED**: Attempted to add `substitute_no_sort()` variant that eliminates the sort operation. Implementation worked correctly but provided ZERO performance benefit in benchmarks. Reverted in commit 1eba87d0.
@@ -1840,6 +2191,8 @@ For all terms T, environments E, and depth d:
 ```
 substitute_old(T, d, E) = substitute_new(T, d, E)
 ```
+
+**Note on Code Examples**: The "Old" and "New" implementations shown in this proof use `iter().map(|x| f(x.clone()))` vs `into_iter().map(|x| f(x))` to illustrate the **semantic equivalence** between clone-based and move-based traversal. However, the actual optimization (commit e8cdd1a7) did NOT change the AST traversal code itself. Instead, the optimization was in the **calling code** (`substitute_and_charge` function signature changed from `&A` to `A`) and the **cost accounting path** (`Cost::create_from_generic` changed from `A` to `&A`). Both versions of the substitute function use `iter()` with `.clone()` - the clones were eliminated at the **call sites** in `reduce.rs` (28 locations) by passing values instead of references. The proof below demonstrates that IF such a transformation were made in the traversal code, it would be semantically equivalent (which validates that the call-site optimization is safe).
 
 **Proof by Structural Induction**:
 
@@ -2964,7 +3317,12 @@ This ensures that each invocation of `matchFunction` starts with a clean state, 
 
 ### 11.3 Concrete Example of State Contamination Bug
 
-**Test Case**: Matching pattern list `[?x, ?y]` against target list `[1, 2, 3]`
+**Test Case**: Two sequential match attempts during bipartite matching exploration:
+- Pattern: `[?x, ?y]` (2 wildcards)
+- Attempt 1: Match against candidate `[1, 2]`
+- Attempt 2: Match against candidate `[1, 3]`
+
+(These are different candidate pairings the bipartite matcher explores when trying to match against elements from a larger target collection.)
 
 **Correct Behavior (with state isolation)**:
 
@@ -2998,11 +3356,13 @@ Attempt 2: Match `[?x, ?y]` against `[1, 3]`
 ### 11.4 Formal Definitions
 
 **Definition 11.1** (Matching Function):
-For pattern P, target T, and initial state σ₀:
+For pattern P, target T, and initial state σ₀ (FreeMap):
 ```
-match(P, T, σ₀) : Option<(σ_result, bindings)>
+match(P, T, σ₀) : Option<FreeMap>
 ```
-Returns `Some((σ', bindings))` if match succeeds with result state σ' and variable bindings, or `None` if match fails.
+Returns `Some(σ')` where σ' is the FreeMap containing updated variable bindings if match succeeds, or `None` if match fails.
+
+**Note**: In this implementation, the "state" (σ) and "bindings" refer to the same FreeMap object - it both tracks bindings and serves as mutable state. The notation `(σ_result, bindings)` in some contexts emphasizes these dual roles, but they are the same data structure.
 
 **Definition 11.2** (Referential Transparency):
 A function f is referentially transparent if:
@@ -3014,8 +3374,13 @@ Same inputs always produce same outputs, regardless of execution history.
 **Definition 11.3** (State Contamination):
 State contamination occurs when:
 ```
-match(P, T₁, σ₀) = Some(σ₁, b₁)  // First call modifies state
-match(P, T₂, σ₀) ≠ match(P, T₂, σ₁)  // Second call with same initial intent sees different results
+match(P, T₁, σ₀) = Some(σ₁, b₁)  // First call modifies state to σ₁
+
+// Expected (with isolation):  match(P, T₂, σ₀) = result₂  (using original state)
+// Actual (contaminated):      match(P, T₂, σ₁) = result₂' (using modified state)
+// Result: result₂ ≠ result₂' (different outputs despite same input intent)
+
+In other words: match(P, T₂, σ₀) ≠ match(P, T₂, σ₁) when σ₁ ≠ σ₀
 ```
 
 **Definition 11.4** (State Isolation):
@@ -3033,7 +3398,9 @@ A function with state isolation satisfies:
 For all patterns P, targets T, and initial states σ₀:
 ```
 match_isolated(P, T, σ₀) = match_contaminated(P, T, σ₀)
-  ONLY IF match_contaminated is called EXACTLY ONCE
+  holds ONLY when match_contaminated is called EXACTLY ONCE
+
+(After the first call, state contamination causes the functions to diverge)
 ```
 
 **Proof by Counterexample**:
@@ -3074,56 +3441,65 @@ Second call fails incorrectly ❌
 
 ∴ Without state isolation, multiple calls produce different results than isolated calls. This violates Theorem 11.1. ∎
 
-### 11.6 Why Scala Can Safely Memoize (with isolateState)
+### 11.6 Root Cause: Scala's isolateState vs Rust's Missing Isolation
 
-**Memoization Safety Theorem**:
-A function f can be safely memoized if and only if it is referentially transparent:
-```
-memoize(f)(x) = f(x) for all x
-```
+#### Scala Reference Implementation (Correct)
 
-**Scala's isolateState ensures referential transparency**:
+**Memoization Safety Principle**: A function can be safely memoized if and only if it is referentially transparent: `memoize(f)(x) = f(x)` for all x.
+
+**Scala's isolateState Pattern** (`SpatialMatcher.scala:279-287`):
 ```scala
 val matchFunction: (Pattern, Target) => Option[FreeMap] =
   isolateState { (p, t) => spatialMatch(p, t) }
+
+// After wrapping with isolateState:
+// - Each call operates on fresh state (isolated)
+// - No mutations persist across calls
+// - Result: Pure function suitable for memoization
 ```
 
-After wrapping with `isolateState`:
-- Call with (P₁, T₁) produces result R₁ with no observable side effects
-- Call with (P₁, T₁) again produces identical result R₁
-- Therefore: `matchFunction(P₁, T₁)` is a pure function
-
-**Memoization optimization**:
+**Memoization Works Correctly**:
 ```scala
 val memoized = memoizeInHashMap(matchFunction)
-memoized(P₁, T₁)  // First call: computes and caches
-memoized(P₁, T₁)  // Second call: returns cached result (correct!)
+memoized(P₁, T₁)  // First call: computes result R₁, caches it
+memoized(P₁, T₁)  // Second call: returns cached R₁ (correct!)
+memoized(P₂, T₂)  // Independent call: no state contamination from P₁,T₁
 ```
 
-### 11.7 Why Rust Implementation Is Broken
+**Why This Works**: `isolateState` wraps the function to:
+1. Clone initial state before each invocation
+2. Run the match function on the isolated clone
+3. Extract result and discard the modified clone
+4. Return result without side effects
 
-**Current Rust implementation**:
+#### Rust Implementation (Broken - Before Fix)
+
+**Original Rust Code** (`list_match.rs:129-136` before fix):
 ```rust
-let mut cloned_self = self.clone();  // Clone entire SpatialMatcherContext
+let mut cloned_self = self.clone();  // Clone ONCE
 let _match_function = Box::new(move |pattern, t| {
-    cloned_self.match_function(pattern, t)  // Mutates cloned_self.free_map
+    cloned_self.match_function(pattern, t)  // Mutates SAME cloned_self repeatedly
 });
 ```
 
 **Problem Analysis**:
-1. `cloned_self` is captured by the closure with `move` semantics
-2. Closure takes ownership of `cloned_self`
-3. Each invocation of closure reuses THE SAME `cloned_self` instance
+1. `cloned_self` is cloned **once** when creating the closure
+2. Closure captures ownership with `move` semantics
+3. **Critical bug**: Each invocation reuses THE SAME `cloned_self` instance
 4. Mutations to `cloned_self.free_map` persist across invocations
-5. **Result**: Non-referential transparency
+5. **Result**: State contamination → Non-referential transparency
 
-**Violation of Referential Transparency**:
+**Concrete Failure**:
+```rust
+let f = _match_function;
+f([?x, ?y], [1, 2])  → Binds x→1, y→2, returns Some  ✓
+                        State now: {x→1, y→2} (persists in cloned_self!)
+
+f([?x, ?y], [1, 3])  → Tries to bind x→1 (OK), y→3 (CONFLICT with y→2!)
+                        Returns None  ✗ INCORRECT
 ```
-Let f = _match_function
-f(P, T₁) modifies internal state → returns Some(result₁)
-f(P, T₂) sees modified state → may return None incorrectly
-f(P, T₂) ≠ fresh_match_function(P, T₂)  // Broken!
-```
+
+**Root Cause**: Missing the "fresh clone per invocation" pattern from Scala's `isolateState`.
 
 ### 11.8 Proposed Fix
 
@@ -3196,127 +3572,47 @@ For all patterns P, targets T, and contexts C:
 match_scala_isolated(P, T, C) = match_rust_isolated(P, T, C)
 ```
 
-**Proof Strategy**: Show that Rust implementation with state isolation replicates Scala's `isolateState` semantics.
+**Proof**: Both implementations follow the same state isolation pattern:
 
-**Proof**:
+**Scala's `isolateState`** (`SpatialMatcher.scala:279-287`):
+1. Save initial state σ₀
+2. Run match function (mutates state to σ₁)
+3. Capture result state σ₁ (or None)
+4. Restore initial state σ₀
+5. Return captured result
 
-**Scala Execution Trace**:
-```scala
-isolateState(matchFunction)(P, T) =
-  1. initState ← get current FreeMap = σ₀
-  2. Run matchFunction(P, T):
-     - Mutates internal state to σ₁
-     - Returns match result
-  3. resultState ← get current FreeMap = σ₁
-  4. set(initState)  // Restore σ₀
-  5. Return (resultState if success, None if failure)
-```
+**Rust's Implementation** (`list_match.rs:129-136` after fix):
+1. Clone fresh context with initial state σ₀
+2. Run match function on isolated clone (mutates to σ₁)
+3. Capture result state σ₁ (or None)
+4. Drop isolated context (state restoration automatic via RAII)
+5. Return captured result
 
-**Rust Execution Trace (with fix)**:
-```rust
-_match_function(P, T) =
-  1. isolated_context ← cloned_self.clone()  // Fresh context with σ₀
-  2. init_free_map ← isolated_context.free_map.clone()  // Save σ₀
-  3. result ← isolated_context.match_function(P, T)
-     - Mutates isolated_context.free_map to σ₁
-     - Returns Some(()) or None
-  4. If result.is_some():
-       result_free_map ← Some(isolated_context.free_map.clone())  // Capture σ₁
-     Else:
-       result_free_map ← None
-  5. isolated_context.free_map ← init_free_map  // Restore σ₀ (optional, context dropped)
-  6. Return result_free_map
-  7. [isolated_context dropped, ensuring no state leakage]
-```
-
-**Correspondence**:
-- Step 1 (Rust) ≡ Steps 1 (Scala): Both save initial state σ₀
-- Step 3 (Rust) ≡ Step 2 (Scala): Both run match function, producing σ₁
-- Step 4 (Rust) ≡ Step 3 (Scala): Both capture result state σ₁
-- Step 5 (Rust) ≡ Step 4 (Scala): Both restore initial state σ₀
-- Step 6 (Rust) ≡ Step 5 (Scala): Both return captured state or None
+**Key Equivalences**:
+- Both create isolated execution environment per invocation
+- Both capture final state without leaking mutations
+- Both restore/discard modified state before return
+- Both guarantee referential transparency: `f(P,T) = f(P,T)` always
 
 ∴ Rust implementation with state isolation is semantically equivalent to Scala's `isolateState`. ∎
 
-### 11.10 Testing Strategy
+**Verification**: See `list_match.rs:129-136` for actual code matching this pattern.
 
-**Unit Tests Required**:
+### 11.10 Testing and Validation
 
-1. **Test: State Isolation Single Call**
-   ```rust
-   #[test]
-   fn test_state_isolation_single_call() {
-       let pattern = vec![var("x"), var("y")];
-       let target = vec![num(1), num(2)];
-       let result = spatial_match(pattern, target);
-       assert!(result.is_some());
-       assert_eq!(result.unwrap().get("x"), Some(&num(1)));
-   }
-   ```
+**Critical Test**: State isolation must prevent contamination across multiple match attempts:
+- First call: `match([?x, ?y], [1, 2])` → binds {x→1, y→2}
+- Second call: `match([?x, ?y], [1, 3])` → must succeed with {x→1, y→3} (not fail due to stale y→2)
 
-2. **Test: State Isolation Multiple Calls (Critical)**
-   ```rust
-   #[test]
-   fn test_state_isolation_no_contamination() {
-       let pattern = vec![var("x"), var("y")];
+**Test Requirements**:
+1. Single call correctness (baseline)
+2. **Multiple calls without contamination** (critical - catches the bug)
+3. Conflict detection still works correctly
+4. Property test: Referential transparency `f(P,T) = f(P,T)` always holds
 
-       // First call
-       let target1 = vec![num(1), num(2)];
-       let result1 = spatial_match(pattern.clone(), target1);
-       assert!(result1.is_some());
+All 120+ existing matcher tests pass with fix. See Appendix 11.A for detailed test implementations. See Appendix 11.B for analysis of why this bug wasn't caught earlier.
 
-       // Second call with different target - should NOT be contaminated
-       let target2 = vec![num(1), num(3)];
-       let result2 = spatial_match(pattern.clone(), target2);
-       assert!(result2.is_some());  // Should succeed (currently FAILS without fix)
-       assert_eq!(result2.unwrap().get("y"), Some(&num(3)));  // Should be 3, not 2
-   }
-   ```
-
-3. **Test: State Isolation with Conflicts**
-   ```rust
-   #[test]
-   fn test_state_isolation_preserves_conflicts() {
-       let pattern = vec![var("x"), var("x")];  // Same variable twice
-       let target = vec![num(1), num(2)];       // Different values
-       let result = spatial_match(pattern, target);
-       assert!(result.is_none());  // Should fail (conflict)
-   }
-   ```
-
-4. **Property Test: Referential Transparency**
-   ```rust
-   #[quickcheck]
-   fn prop_referential_transparency(pattern: Vec<Pattern>, target: Vec<Par>) -> bool {
-       let result1 = spatial_match(pattern.clone(), target.clone());
-       let result2 = spatial_match(pattern.clone(), target.clone());
-       result1 == result2  // Same inputs must produce same outputs
-   }
-   ```
-
-### 11.11 Why This Bug Wasn't Caught Earlier
-
-**Test Suite Coverage Gap**:
-- Existing tests primarily test single match operations
-- No tests exercise multiple match attempts with overlapping patterns
-- `MaximumBipartiteMatch` invokes match function multiple times, but:
-  - Most test cases have non-overlapping pattern sets
-  - Contamination only manifests with certain pattern/target combinations
-
-**Manifestation Conditions**:
-Bug only triggers when:
-1. Multiple match attempts are made (bipartite matching explores multiple combinations)
-2. Patterns share free variables (e.g., `?x` appears in multiple patterns)
-3. Early match binds variable to value V₁
-4. Later match attempts to bind same variable to value V₂ ≠ V₁
-
-**Why Memoization Was Bypassed**:
-The Scala developers likely discovered this bug when attempting to add memoization:
-- Without `isolateState`: Memoization caches contaminated results → incorrect
-- With `isolateState`: Each call is pure → safe to memoize
-- Comment `"NOTE: Bypassing 'memoizeInHashMap' here"` suggests Rust port recognized the complexity but didn't implement the full solution
-
-### 11.12 Performance Impact of Fix
+### 11.11 Performance Impact of Fix
 
 **Cost Analysis**:
 
@@ -3415,6 +3711,94 @@ pub fn list_match<'a>(
 **Impact**: This was a CRITICAL CORRECTNESS BUG. The original implementation would produce incorrect matching results due to state leakage between match attempts in the bipartite matching algorithm. This bug was inherited from the Scala → Rust port where the Scala code's `isolateState` wrapper was initially omitted.
 
 **Benchmark Results**: Minimal performance impact (<5%) for correctness guarantee. This fix was required before any memoization optimization could be safely attempted. See Proof 12 abandonment note for why subsequent memoization was rejected.
+
+---
+
+## Appendix 11.A: Detailed Test Implementations
+
+**Test 1: State Isolation Single Call** (Baseline correctness)
+```rust
+#[test]
+fn test_state_isolation_single_call() {
+    let pattern = vec![var("x"), var("y")];
+    let target = vec![num(1), num(2)];
+    let result = spatial_match(pattern, target);
+    assert!(result.is_some());
+    assert_eq!(result.unwrap().get("x"), Some(&num(1)));
+}
+```
+
+**Test 2: State Isolation Multiple Calls** (CRITICAL - Catches the bug)
+```rust
+#[test]
+fn test_state_isolation_no_contamination() {
+    let pattern = vec![var("x"), var("y")];
+
+    // First call
+    let target1 = vec![num(1), num(2)];
+    let result1 = spatial_match(pattern.clone(), target1);
+    assert!(result1.is_some());
+    assert_eq!(result1.unwrap().get("y"), Some(&num(2)));
+
+    // Second call with different target - should NOT be contaminated
+    let target2 = vec![num(1), num(3)];
+    let result2 = spatial_match(pattern.clone(), target2);
+
+    // Without fix: This fails because y is still bound to 2
+    // With fix: This succeeds with y bound to 3
+    assert!(result2.is_some());
+    assert_eq!(result2.unwrap().get("y"), Some(&num(3)));  // Should be 3, not 2
+}
+```
+
+**Test 3: State Isolation Preserves Conflicts** (Ensure fix doesn't break conflict detection)
+```rust
+#[test]
+fn test_state_isolation_preserves_conflicts() {
+    let pattern = vec![var("x"), var("x")];  // Same variable twice
+    let target = vec![num(1), num(2)];       // Different values
+    let result = spatial_match(pattern, target);
+    assert!(result.is_none());  // Should fail (conflict)
+}
+```
+
+**Test 4: Property Test - Referential Transparency** (Formal verification)
+```rust
+#[quickcheck]
+fn prop_referential_transparency(pattern: Vec<Pattern>, target: Vec<Par>) -> bool {
+    let result1 = spatial_match(pattern.clone(), target.clone());
+    let result2 = spatial_match(pattern.clone(), target.clone());
+    result1 == result2  // Same inputs must produce same outputs
+}
+```
+
+---
+
+## Appendix 11.B: Why This Bug Wasn't Caught Earlier
+
+**Test Suite Coverage Gap**:
+- Existing tests primarily test single match operations
+- No tests exercise multiple match attempts with overlapping patterns
+- `MaximumBipartiteMatch` invokes match function multiple times, but:
+  - Most test cases have non-overlapping pattern sets
+  - Contamination only manifests with certain pattern/target combinations
+
+**Manifestation Conditions**:
+Bug only triggers when ALL of the following occur:
+1. Multiple match attempts are made (bipartite matching explores multiple combinations)
+2. Patterns share free variables (e.g., `?x` appears in multiple patterns)
+3. Early match binds variable to value V₁
+4. Later match attempts to bind same variable to value V₂ ≠ V₁
+
+**Why Memoization Was Bypassed**:
+The Scala developers likely discovered this issue when attempting to add memoization:
+- Without `isolateState`: Memoization caches contaminated results → incorrect
+- With `isolateState`: Each call is pure → safe to memoize
+- Comment `"NOTE: Bypassing 'memoizeInHashMap' here"` in Scala code suggests awareness of the complexity
+- Rust port recognized the issue (copied the bypass comment) but didn't implement the full `isolateState` solution
+
+**Historical Context**:
+This bug existed in the Rust codebase since the initial Scala → Rust port. The Scala implementation's `isolateState` wrapper (a higher-order function) didn't have a direct Rust equivalent, leading to the pattern being omitted during translation.
 
 ---
 ---
