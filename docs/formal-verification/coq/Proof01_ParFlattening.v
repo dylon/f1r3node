@@ -306,15 +306,25 @@ Fixpoint make_right_skewed_tree (n : nat) (atom : ProcessTree) : ProcessTree :=
   end.
 
 (** Property: Right-skewed tree has depth = n
-    Note: Proof requires case analysis on which atomic constructor,
-    or a lemma about atomic depth. Admitted for now.
+    Note: The key insight is that we only need the atom to have depth 0,
+    not the full is_atomic predicate. This works for PNil, PSend, and PExpr.
  *)
 Lemma right_skewed_depth : forall (n : nat) (atom : ProcessTree),
-  is_atomic atom = true ->
+  tree_depth atom = 0 ->
   tree_depth (make_right_skewed_tree n atom) = n.
 Proof.
-  (* TODO: Requires lemma that all atomics have depth 0 *)
-Admitted.
+  intros n atom H_atom_depth.
+  induction n; simpl.
+  - (* n = 0: tree is just atom *)
+    assumption.
+  - (* n = S n': tree is PPar atom (make_right_skewed_tree n' atom) *)
+    (* tree_depth = 1 + max (tree_depth atom) (tree_depth (make_right_skewed_tree n' atom)) *)
+    rewrite H_atom_depth.
+    rewrite IHn.
+    (* Goal: 1 + max 0 n' = S n' *)
+    simpl.
+    reflexivity.
+Qed.
 
 (** Property: Right-skewed tree with atomic size 1 has total size 1 + 2n *)
 Lemma right_skewed_size_atomic : forall (n : nat) (atom : ProcessTree),
