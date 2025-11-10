@@ -251,17 +251,144 @@ Qed.
 Definition flatten_all (trees : list ProcessTree) : list ProcessTree :=
   flat_map flatten trees.
 
+(** Helper definition for stack size (sum of tree sizes) *)
+Definition stack_size (stack : list ProcessTree) : nat :=
+  fold_left (fun sum t => sum + tree_size t) stack 0.
+
+(** Helper lemmas for stack_size *)
+
+Lemma stack_size_nil :
+  stack_size [] = 0.
+Proof.
+  unfold stack_size. simpl. reflexivity.
+Qed.
+
+Lemma stack_size_cons : forall t stack,
+  stack_size (t :: stack) = tree_size t + stack_size stack.
+Proof.
+  intros t stack.
+  unfold stack_size.
+  simpl.
+  assert (H: forall s acc0, fold_left (fun sum t => sum + tree_size t) s acc0 =
+                            acc0 + fold_left (fun sum t => sum + tree_size t) s 0).
+  {
+    intro s.
+    induction s as [| x xs IH]; intro acc0; simpl.
+    - lia.
+    - rewrite IH.
+      rewrite (IH (tree_size x)).
+      lia.
+  }
+  rewrite H.
+  reflexivity.
+Qed.
+
+Lemma flatten_all_cons : forall t stack,
+  flatten_all (t :: stack) = flatten t ++ flatten_all stack.
+Proof.
+  intros t stack.
+  unfold flatten_all.
+  simpl.
+  reflexivity.
+Qed.
+
 (** Auxiliary lemma: stack-based flattening with sufficient fuel
-    Note: Complex interaction between fuel decrementation and base cases.
-    This lemma requires careful handling of the fuel=0 subcase in each constructor branch.
-    Admitting for now to focus on the main equivalence theorem.
+
+    IMPORTANT: This uses the updated fuel formula (2 * stack_size + 1) which eliminates
+    the problematic fuel=0 edge case where acc is non-empty but stack is empty.
+    The implementation was also corrected to process PPar children in the correct order
+    (left child first, then right child) to match the flatten function.
  *)
 Lemma flatten_stack_aux_correct : forall (stack acc : list ProcessTree) (fuel : nat),
-  fuel >= 2 * (fold_left (fun sum t => sum + tree_size t) stack 0) ->
+  fuel >= 2 * stack_size stack + 1 ->
   flatten_stack_aux stack acc fuel = List.rev acc ++ flatten_all stack.
 Proof.
-  (* TODO: Complete proof - requires handling fuel=0 base cases *)
-Admitted.
+  intros stack acc0 fuel H_fuel.
+  revert stack acc0 H_fuel.
+  induction fuel as [| fuel' IH]; intros stack acc0 H_fuel.
+
+  - (* fuel = 0 - impossible with fuel >= 2 * stack_size + 1 >= 1 *)
+    exfalso. lia.
+
+  - (* fuel = S fuel' *)
+    destruct stack as [| current rest_stack].
+
+    + (* stack = [] *)
+      simpl. rewrite app_nil_r. reflexivity.
+
+    + (* stack = current :: rest_stack *)
+      simpl.
+      rewrite stack_size_cons in H_fuel.
+
+      destruct current.
+
+      * (* PNil - atomic *)
+        rewrite IH.
+        -- simpl List.rev.
+           unfold flatten_all at 2; simpl flat_map; simpl flatten; fold (flatten_all rest_stack).
+           rewrite <- app_assoc.
+           reflexivity.
+        -- simpl in H_fuel. repeat rewrite stack_size_cons in H_fuel. lia.
+
+      * (* PSend - atomic *)
+        rewrite IH.
+        -- simpl List.rev.
+           unfold flatten_all at 2; simpl flat_map; simpl flatten;  fold (flatten_all rest_stack).
+           rewrite <- app_assoc.
+           reflexivity.
+        -- simpl in H_fuel. repeat rewrite stack_size_cons in H_fuel. lia.
+
+      * (* PReceive - atomic *)
+        rewrite IH.
+        -- simpl List.rev.
+           unfold flatten_all at 2; simpl flat_map; simpl flatten; fold (flatten_all rest_stack).
+           rewrite <- app_assoc.
+           reflexivity.
+        -- simpl in H_fuel. repeat rewrite stack_size_cons in H_fuel. lia.
+
+      * (* PNew - atomic *)
+        rewrite IH.
+        -- simpl List.rev.
+           unfold flatten_all at 2; simpl flat_map; simpl flatten; fold (flatten_all rest_stack).
+           rewrite <- app_assoc.
+           reflexivity.
+        -- simpl in H_fuel. repeat rewrite stack_size_cons in H_fuel. lia.
+
+      * (* PMatch - atomic *)
+        rewrite IH.
+        -- simpl List.rev.
+           unfold flatten_all at 2; simpl flat_map; simpl flatten; fold (flatten_all rest_stack).
+           rewrite <- app_assoc.
+           reflexivity.
+        -- simpl in H_fuel. repeat rewrite stack_size_cons in H_fuel. lia.
+
+      * (* PBundle - atomic *)
+        rewrite IH.
+        -- simpl List.rev.
+           unfold flatten_all at 2; simpl flat_map; simpl flatten; fold (flatten_all rest_stack).
+           rewrite <- app_assoc.
+           reflexivity.
+        -- simpl in H_fuel. repeat rewrite stack_size_cons in H_fuel. lia.
+
+      * (* PExpr - atomic *)
+        rewrite IH.
+        -- simpl List.rev.
+           unfold flatten_all at 2; simpl flat_map; simpl flatten; fold (flatten_all rest_stack).
+           rewrite <- app_assoc.
+           reflexivity.
+        -- simpl in H_fuel. repeat rewrite stack_size_cons in H_fuel. lia.
+
+      * (* PPar t1 t2 - expanded to t1 :: t2 :: rest_stack *)
+        rewrite IH.
+        -- unfold flatten_all at 1; simpl flat_map; fold (flatten_all rest_stack).
+           unfold flatten_all at 2; simpl flat_map; simpl flatten; fold (flatten_all rest_stack).
+           repeat rewrite app_assoc.
+           reflexivity.
+        -- simpl in H_fuel.
+           rewrite stack_size_cons.
+           rewrite stack_size_cons.
+           lia.
+Qed.
 
 (** Flattening produces the same sequence of atomic processes regardless of method *)
 Lemma flatten_stack_equiv : forall (t : ProcessTree),
@@ -271,7 +398,12 @@ Proof.
   unfold flatten_stack.
   rewrite flatten_stack_aux_correct.
   - simpl. unfold flatten_all. simpl. rewrite List.app_nil_r. reflexivity.
-  - simpl. lia.  (* fuel adequate *)
+  - (* Need: 2 * tree_size t + 1 >= 2 * stack_size [t] + 1 *)
+    (* stack_size [t] = tree_size t by stack_size_cons *)
+    simpl.
+    rewrite stack_size_cons.
+    rewrite stack_size_nil.
+    lia.
 Qed.
 
 (** ** Correctness for Atomic Processes *)

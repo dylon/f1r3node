@@ -262,8 +262,8 @@ Fixpoint flatten_stack_aux (stack : list ProcessTree) (acc : list ProcessTree)
       | current :: rest_stack =>
           match current with
           | PPar t1 t2 =>
-              (* Push right then left (so left is processed first) *)
-              flatten_stack_aux (t2 :: t1 :: rest_stack) acc fuel'
+              (* Push right then left onto stack (left ends up on top, processed first) *)
+              flatten_stack_aux (t1 :: t2 :: rest_stack) acc fuel'
           | _ =>
               (* Atomic process - add to accumulator *)
               flatten_stack_aux rest_stack (current :: acc) fuel'
@@ -272,8 +272,8 @@ Fixpoint flatten_stack_aux (stack : list ProcessTree) (acc : list ProcessTree)
   end.
 
 Definition flatten_stack (t : ProcessTree) : list ProcessTree :=
-  (* Fuel = 2 * tree_size to guarantee termination *)
-  flatten_stack_aux [t] [] (2 * tree_size t).
+  (* Fuel = 2 * tree_size + 1 to guarantee termination and avoid edge case *)
+  flatten_stack_aux [t] [] (2 * tree_size t + 1).
 
 (** ** Semantic Evaluation *)
 
