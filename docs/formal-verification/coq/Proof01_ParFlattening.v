@@ -21,66 +21,6 @@ From Rholang Require Import RholangCore.
 From Rholang Require Import RholangLemmas.
 Import ListNotations.
 
-(** ** Main Equivalence Theorem *)
-
-(** Theorem 1.1: Recursive and iterative normalization are semantically equivalent.
-
-    This is the core theorem proving correctness of the stack overflow fix.
-*)
-Theorem norm_recursive_iterative_equiv : forall (t : ProcessTree) (st : NormState),
-  norm_recursive t st (2 * tree_size t) = norm_iterative t st.
-Proof.
-  intros t st.
-  unfold norm_iterative.
-  generalize dependent st.
-
-  induction t; intro st; simpl.
-
-  - (* PNil *)
-    unfold flatten. simpl.
-    reflexivity.
-
-  - (* PSend *)
-    unfold flatten. simpl.
-    reflexivity.
-
-  - (* PReceive *)
-    unfold flatten. simpl.
-    reflexivity.
-
-  - (* PNew *)
-    unfold flatten. simpl.
-    reflexivity.
-
-  - (* PMatch *)
-    unfold flatten. simpl.
-    reflexivity.
-
-  - (* PBundle *)
-    unfold flatten. simpl.
-    reflexivity.
-
-  - (* PExpr *)
-    unfold flatten. simpl.
-    reflexivity.
-
-  - (* PPar left right *)
-    simpl norm_recursive.
-    simpl flatten.
-    rewrite fold_left_app.
-
-    (** Strategy: Apply fuel adequacy lemma norm_recursive_fuel_adequate
-        to show that the fuel used (2 * tree_size (PPar t1 t2)) is adequate
-        for both subtrees, then apply IH.
-
-        The proof requires:
-        1. fuel_left = 2 * tree_size (PPar t1 t2) - 1 >= 2 * tree_size t1
-        2. fuel_right = fuel_left >= 2 * tree_size t2
-        3. Apply norm_recursive_fuel_adequate to equate different fuel values
-        4. Apply IH for both subtrees
-    *)
-    admit. (* Requires fuel adequacy reasoning with norm_recursive_fuel_adequate *)
-Admitted.
 
 (** ** Fuel Adequacy Lemmas *)
 
@@ -172,6 +112,80 @@ Proof.
         -- (* Prove the replacement: t1's fuel reduction *)
            symmetry.
            apply (IHt1 st (tree_size t1 + tree_size t2 + S (tree_size t1 + tree_size t2 + 0)) H1_big).
+Qed.
+
+(** ** Main Equivalence Theorem *)
+
+(** Theorem 1.1: Recursive and iterative normalization are semantically equivalent.
+
+    This is the core theorem proving correctness of the stack overflow fix.
+*)
+Theorem norm_recursive_iterative_equiv : forall (t : ProcessTree) (st : NormState),
+  norm_recursive t st (2 * tree_size t) = norm_iterative t st.
+Proof.
+  intros t st.
+  unfold norm_iterative.
+  generalize dependent st.
+
+  induction t; intro st; simpl.
+
+  - (* PNil *)
+    unfold flatten. simpl.
+    reflexivity.
+
+  - (* PSend *)
+    unfold flatten. simpl.
+    reflexivity.
+
+  - (* PReceive *)
+    unfold flatten. simpl.
+    reflexivity.
+
+  - (* PNew *)
+    unfold flatten. simpl.
+    reflexivity.
+
+  - (* PMatch *)
+    unfold flatten. simpl.
+    reflexivity.
+
+  - (* PBundle *)
+    unfold flatten. simpl.
+    reflexivity.
+
+  - (* PExpr *)
+    unfold flatten. simpl.
+    reflexivity.
+
+  - (* PPar left right *)
+    simpl norm_recursive.
+    simpl flatten.
+    rewrite fold_left_app.
+
+    (** After simpl and rewrite:
+        LHS: norm_recursive t2 (norm_recursive t1 st BIG_FUEL) BIG_FUEL
+             where BIG_FUEL = tree_size t1 + tree_size t2 + S (tree_size t1 + tree_size t2 + 0)
+
+        RHS: fold_left normalize_atomic (flatten t2)
+                       (fold_left normalize_atomic (flatten t1) st)
+    *)
+
+    (* Step 1: Show BIG_FUEL is adequate for both subtrees *)
+    assert (H_fuel1 : tree_size t1 + tree_size t2 + S (tree_size t1 + tree_size t2 + 0) >= 2 * tree_size t1) by lia.
+    assert (H_fuel2 : tree_size t1 + tree_size t2 + S (tree_size t1 + tree_size t2 + 0) >= 2 * tree_size t2) by lia.
+
+    (* Step 2: Apply fuel adequacy to reduce t1's fuel from BIG_FUEL to 2*size(t1) *)
+    rewrite (norm_recursive_fuel_adequate t1 st _ H_fuel1).
+
+    (* Step 3: Apply fuel adequacy to reduce t2's fuel from BIG_FUEL to 2*size(t2) *)
+    rewrite (norm_recursive_fuel_adequate t2 (norm_recursive t1 st (2 * tree_size t1)) _ H_fuel2).
+
+    (* Step 4: Apply IHs to convert both sides to fold_left form *)
+    rewrite IHt2.
+    rewrite IHt1.
+
+    (* Both sides are now identical fold_left expressions *)
+    reflexivity.
 Qed.
 
 (** ** Stack Space Complexity *)
