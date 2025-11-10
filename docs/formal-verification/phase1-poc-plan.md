@@ -24,46 +24,46 @@
 
 ### What is Phase 1?
 
-**Phase 1** is a **3-4 month Proof-of-Concept** to validate that mechanizing Rholang optimization proofs is:
-1. **Technically feasible** (Coq/Isabelle can express Rholang semantics)
-2. **Cost-effective** (ROI justifies continued investment)
-3. **Maintainable** (Team can sustain long-term development)
+**Phase 1** is a **6-8 month Foundation + Proof-of-Concept** phase to:
+1. Build comprehensive foundational library (480 lemmas, 4-6 months)
+2. Mechanize 3 critical proofs (Proofs 1, 6, 11) to validate feasibility
+3. Determine if full mechanization is **technically feasible** and **cost-effective**
 
 ### Key Deliverables
 
 | Deliverable | Status | Validation Criteria |
 |-------------|--------|---------------------|
-| **Foundational Library** | Core requirement | 290+ lemmas, 4000 LOC, passes PoC proofs |
-| **3 Complete Proofs** | Core requirement | Proofs 1, 4, 11 mechanized and validated |
-| **Tool Evaluation** | Core requirement | Coq vs Isabelle recommendation with data |
+| **Foundational Library** | Core requirement | 480 lemmas, 6050 LOC, includes Rust semantics |
+| **3 Complete Proofs** | Core requirement | Proofs 1, 6, 11 mechanized and validated |
+| **Tool Evaluation** | Core requirement | Coq vs Isabelle recommendation with empirical data |
 | **ROI Analysis** | Core requirement | Measured speedup, effort estimates for Phase 2 |
 | **Go/No-Go Report** | Core requirement | Recommendation to proceed/pivot/halt |
 
 ### Success Criteria (Go to Phase 2)
 
 ✅ **All 3 PoC proofs validated** (match paper proofs semantically)
-✅ **Foundational library complete** (enables proofs with 5x+ speedup)
-✅ **Positive ROI projection** (Phase 2 cost < 2x Phase 1 cost)
-✅ **Team capability demonstrated** (1 person can complete Phase 2 in 6-9 months)
+✅ **Foundational library complete** (480 lemmas, enables proofs with 5x+ speedup)
+✅ **Positive ROI projection** (Phase 2 cost justified by value)
+✅ **Team capability demonstrated** (1-1.5 FTE can complete Phase 2 in 12-18 months)
 
 ### Budget
 
-**Total Cost**: $50,000 - $70,000
-**Duration**: 3-4 months
-**Team Size**: 1 person (formal methods expert)
+**Total Cost**: $90,000 - $120,000
+**Duration**: 6-8 months
+**Team Size**: 1.5 FTE (1 senior + 0.5 junior formal methods expert)
 
 **Breakdown**:
-- Month 1 (Foundational definitions): $15,000 - $18,000
-- Month 2 (Reusable lemmas): $15,000 - $18,000
-- Month 3 (Automation + PoC proofs): $15,000 - $18,000
-- Month 4 (Validation + report): $5,000 - $16,000 (optional extension)
+- Months 1-2 (Foundational definitions): $22,500 - $30,000
+- Months 3-4 (Reusable lemmas - 480 total): $22,500 - $30,000
+- Months 5-6 (Rust semantics + Automation): $22,500 - $30,000
+- Months 6-8 (PoC proofs 1, 6, 11): $22,500 - $30,000
 
 ### Decision Point
 
-**At end of Month 3**:
-- **GO**: Proceed to Phase 2 (6-9 months, core proofs)
-- **PIVOT**: Adjust scope or tooling based on learnings
-- **NO-GO**: Halt mechanization, focus on alternative validation methods
+**At end of Month 6** (after foundational library + 1-2 PoC proofs):
+- **GO**: Proceed to Phase 2 (12-18 months, remaining 8 proofs)
+- **PIVOT**: Adjust scope (e.g., hybrid approach: mechanize critical 3, property-test rest)
+- **NO-GO**: Halt mechanization, focus on alternative validation methods (property testing, differential testing)
 
 ---
 

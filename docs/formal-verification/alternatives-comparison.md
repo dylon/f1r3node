@@ -38,13 +38,13 @@ The main plan proposes:
 
 | Approach | Cost | Time | Confidence | Maintainability |
 |----------|------|------|------------|-----------------|
-| **Full Mechanization** (baseline) | $130K-200K | 9-13 months | ⭐⭐⭐⭐⭐ 100% | ⭐⭐⭐⭐⭐ Excellent |
-| **Property-Based Testing** | $10K-20K | 1-2 months | ⭐⭐⭐ 95% | ⭐⭐⭐⭐ Good |
-| **Semi-Automated Verification** | $50K-80K | 4-6 months | ⭐⭐⭐⭐ 98% | ⭐⭐⭐⭐ Good |
-| **Symbolic Execution** | $30K-50K | 2-4 months | ⭐⭐⭐⭐ 97% | ⭐⭐⭐ Fair |
-| **Differential Testing** | $15K-25K | 2-3 months | ⭐⭐⭐ 90% | ⭐⭐⭐ Fair |
-| **Model Checking** | $40K-60K | 3-5 months | ⭐⭐⭐⭐ 96% | ⭐⭐⭐ Fair |
-| **Hybrid (Best Practices)** | $60K-100K | 4-7 months | ⭐⭐⭐⭐ 98% | ⭐⭐⭐⭐ Good |
+| **Full Mechanization** (baseline) | $240K-345K | 18-26 months | ⭐⭐⭐⭐⭐ 98% | ⭐⭐⭐⭐⭐ Excellent |
+| **Property-Based Testing** | $15K-25K | 2-3 months | ⭐⭐⭐ 95% | ⭐⭐⭐⭐ Good |
+| **Semi-Automated Verification** | $70K-110K | 6-9 months | ⭐⭐⭐⭐ 97% | ⭐⭐⭐⭐ Good |
+| **Symbolic Execution** | $40K-60K | 3-5 months | ⭐⭐⭐⭐ 95% | ⭐⭐⭐ Fair |
+| **Differential Testing** | $20K-30K | 2-3 months | ⭐⭐⭐ 90% | ⭐⭐⭐ Fair |
+| **Model Checking** | $50K-75K | 4-6 months | ⭐⭐⭐⭐ 94% | ⭐⭐⭐ Fair |
+| **Hybrid (Best Practices)** | $125K-170K | 9-12 months | ⭐⭐⭐⭐ 98% | ⭐⭐⭐⭐ Good |
 
 ### Key Findings
 
@@ -74,12 +74,12 @@ Mechanize all 11 proofs in Coq/Isabelle with:
 
 ### Characteristics
 
-**Cost**: $130,000 - $200,000
-**Timeline**: 9-13 months
-**Team**: 1-2 formal methods experts
+**Cost**: $240,000 - $345,000
+**Timeline**: 18-26 months (Phase 1: 6-8 months, Phase 2: 12-18 months)
+**Team**: 1-1.5 FTE formal methods experts
 
 **Strengths**:
-- ✅ **100% confidence**: Mathematical certainty of correctness
+- ✅ **98% confidence**: Mathematical proofs with empirical validation for remaining 2%
 - ✅ **Publication quality**: Suitable for academic venues
 - ✅ **Long-term value**: Foundation for future optimizations
 - ✅ **Extraction**: Can generate verified code
@@ -763,17 +763,17 @@ fn verify_normalize_equivalence() {
 - Differential testing provides **additional validation**
 
 **Cost**:
-- Mechanization: $60K-80K (4-5 months, simplified foundation)
-- Property testing: $10K-15K (1 month)
-- Differential testing: $10K-15K (1 month)
-- **Total**: $80K-110K (6-7 months)
+- Foundation + 3 critical proofs mechanized: $90K-120K (6-8 months, full foundation with 480 lemmas)
+- Property testing remaining 8 proofs: $20K-30K (2 months)
+- Differential testing + integration: $15K-20K (1-2 months)
+- **Total**: $125K-170K (9-12 months)
 
 **Confidence**:
-- Critical proofs: 100% (mechanized)
+- Critical proofs: 100% (mechanized with full foundation)
 - Optimizations: 95% (property tested)
 - Overall: ~98% (weighted average)
 
-**Recommendation**: ⭐ **Best ROI for Rholang** if budget $80K-110K.
+**Recommendation**: ⭐ **Best ROI for Rholang** - balances confidence with cost/timeline.
 
 ### 8.2 Mechanize Foundations + SMT for Proofs
 

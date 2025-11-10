@@ -1,0 +1,30 @@
+# Coq Project Configuration for Rholang Optimization Proofs
+#
+# Usage:
+#   coq_makefile -f _CoqProject -o Makefile
+#   make
+#
+# Or compile individual files:
+#   coqc RholangCore.v
+
+-R . Rholang
+
+# Core files (must be compiled first due to dependencies)
+RholangCore.v
+RholangLemmas.v
+
+# Individual proofs (can be compiled in any order after core)
+Proof01_ParFlattening.v
+Proof02_RcSharing.v
+Proof03_PreAllocation.v
+Proof04_AccumulatorPattern.v
+Proof05_MatchOptimization.v
+Proof06_LazySubPars.v
+Proof07_CloneReduction.v
+Proof08_PersistentHashMap.v
+Proof09_PersistentEnv.v
+Proof10_PersistentBoundMapChain.v
+Proof11_StateIsolation.v
+
+# Main import file (depends on all proofs)
+RholangOptimizations.v

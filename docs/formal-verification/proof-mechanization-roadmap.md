@@ -22,28 +22,29 @@ This document provides detailed mechanization plans for each of the 11 optimizat
 ## Proof Dependency Graph
 
 ```
-Foundational Work (2-4 months)
+Foundational Work (4-6 months, 480 lemmas)
   ├─ ProcessTree, Par, State definitions
-  ├─ Fold decomposition lemma (Lemma 1.1)
-  ├─ List operation laws (append, reverse)
-  └─ Vec/HashMap abstract semantics
+  ├─ 400-500 reusable lemmas (lists, sets, state, eval, complexity)
+  ├─ Rust semantics (Vec, Rc, amortized analysis)
+  └─ Custom automation (tactics, sledgehammer)
       │
-      ├─→ Proof 1: Par Flattening (2-3 weeks) ─┐
+      ├─→ Proof 1: Par Flattening (4-6 weeks) ─┐
       │                                          │
-      ├─→ Proof 4: Accumulator (3-4 weeks) ─────┼─→ Proof 5: Match (2-3 weeks)
+      ├─→ Proof 6: Lazy sub_pars (6-8 weeks) ───┼─→ Phase 1 Complete (6-8 months total)
       │                                          │
-      ├─→ Proof 6: Lazy sub_pars (4-6 weeks)    │
+      ├─→ Proof 11: State Isolation (6-10 weeks)│
       │                                          │
-      ├─→ Proof 11: State Isolation (3-5 weeks) │
+      ├─→ Proof 4: Accumulator (8-12 weeks) ────┼─→ Proof 5: Match (3-5 weeks)
       │                                          │
-      └─→ Proofs 2, 3, 7-10 (3-6 weeks each) ───┘
+      └─→ Proofs 2, 3, 7-10 (4-8 weeks each) ───┘
                                                  │
                                                  v
-                                         Library (20-30 lemmas)
+                                   Complete Library (480 lemmas)
 ```
 
-**Critical Path**: Foundational Work → Proof 1 → Proof 4 → Proof 5
-**Estimated Duration**: 11-14 weeks for critical path
+**Critical Path**: Foundational Work (24 weeks) → Proof 1 (6 weeks) → Proof 6 (8 weeks) → Proof 11 (10 weeks)
+**Estimated Duration**: 48 weeks (12 months) for Phase 1 critical path
+**Total for All 11 Proofs**: 18-26 months (foundational + all proofs)
 
 ---
 
@@ -53,8 +54,8 @@ Foundational Work (2-4 months)
 - **Type**: Algorithm transformation (recursive → iterative)
 - **Mechanization Potential**: **95%**
 - **Recommended Tool**: Coq
-- **Estimated Effort**: 2-3 weeks
-- **Priority**: **CRITICAL** (foundational for other proofs)
+- **Estimated Effort**: 4-6 weeks (with foundational library)
+- **Priority**: **CRITICAL** (Phase 1, foundational for other proofs)
 
 ### What Can Be Mechanized
 
@@ -177,8 +178,8 @@ Definition normalize_atomic (p : Process) (s : State) : State :=
 - **Type**: Complexity transformation (O(n²) → O(n))
 - **Mechanization Potential**: **90%**
 - **Recommended Tool**: Coq or Isabelle/HOL
-- **Estimated Effort**: 3-4 weeks
-- **Priority**: **HIGH** (dramatic speedup validation)
+- **Estimated Effort**: 8-12 weeks (most complex proof - requires amortized analysis, hidden prepending mechanics)
+- **Priority**: **HIGH** (Phase 2, dramatic speedup validation, high complexity)
 
 ### What Can Be Mechanized
 
@@ -358,8 +359,8 @@ Theorem foldr_foldl_reverse :
 - **Type**: Data structure transformation (eager → lazy)
 - **Mechanization Potential**: **95%**
 - **Recommended Tool**: Isabelle/HOL or Lean 4
-- **Estimated Effort**: 4-6 weeks
-- **Priority**: **HIGH** (pure mathematics, dramatic memory reduction)
+- **Estimated Effort**: 6-8 weeks (pure mathematics - bijection proofs, combinatorics, iterator properties)
+- **Priority**: **CRITICAL** (Phase 1, excellent Isabelle showcase, self-contained)
 
 ### What Can Be Mechanized
 
@@ -503,8 +504,8 @@ Definition sub_pars_cartesian
 - **Type**: Correctness bug fix (state contamination)
 - **Mechanization Potential**: **95%**
 - **Recommended Tool**: Coq (monad libraries)
-- **Estimated Effort**: 3-5 weeks
-- **Priority**: **CRITICAL** (correctness, not optimization)
+- **Estimated Effort**: 6-10 weeks (monad laws, referential transparency, counterexample construction, bipartite matching context)
+- **Priority**: **CRITICAL** (Phase 1, correctness not optimization, foundational for pattern matching)
 
 ### What Can Be Mechanized
 

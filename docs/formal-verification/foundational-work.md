@@ -25,12 +25,13 @@
 
 ### Purpose
 
-Before mechanizing any of the 11 Rholang optimization proofs, we must invest **2-4 months** in foundational work to establish:
+Before mechanizing any of the 11 Rholang optimization proofs, we must invest **4-6 months** in foundational work to establish:
 
 1. **Core Definitions**: Formalize Rholang syntax, semantics, and data structures
-2. **Reusable Lemmas**: Prove fundamental properties reused across all proofs
+2. **Reusable Lemmas**: Prove 400-500 fundamental properties reused across all proofs
 3. **Infrastructure**: Set up build system, testing, and documentation
 4. **Proof Patterns**: Establish common proof techniques and automation
+5. **Rust Semantics**: Formalize Vec growth, Rc sharing, amortized complexity
 
 ### Why This is Essential
 
@@ -50,26 +51,32 @@ Before mechanizing any of the 11 Rholang optimization proofs, we must invest **2
 
 | Phase | Effort | Cumulative Benefit |
 |-------|--------|-------------------|
-| **Foundational Work** | 2-4 months | 0 proofs (infrastructure only) |
-| **Proof 1 (with foundation)** | 1 week | 1 proof (10x faster than without) |
-| **Proofs 2-11 (with foundation)** | 2-4 months | 11 proofs (reuse 80% of lemmas) |
-| **Total with foundation** | 4-8 months | 11 proofs + maintainable base |
-| **Total without foundation** | 12-18 months | 11 proofs + unmaintainable mess |
+| **Foundational Work** | 4-6 months | 0 proofs (infrastructure only) |
+| **Proof 1 (with foundation)** | 4-6 weeks | 1 proof (5x faster than without) |
+| **Proofs 6, 11 (with foundation)** | 12-18 weeks | 3 proofs (Phase 1 complete) |
+| **Proofs 2-11 (with foundation)** | 12-18 months | 11 proofs (reuse 80% of lemmas) |
+| **Total with foundation** | 22-32 months | 11 proofs + maintainable base |
+| **Total without foundation** | 50-70 months | 11 proofs + unmaintainable mess |
 
-**ROI**: Foundational work pays for itself by Proof 3-4, then provides 10x returns.
+**ROI**: Foundational work pays for itself by Proof 4-5, then provides 5-7x returns on remaining proofs.
 
 ### Key Deliverables
 
-1. **Coq Library** (~3000 LOC):
-   - `Rholang/Syntax.v` - AST definitions
-   - `Rholang/Semantics.v` - Denotational semantics
-   - `Rholang/Lemmas.v` - Reusable lemmas (100+ theorems)
-   - `Rholang/Tactics.v` - Custom proof automation
+1. **Coq Library** (~5000 LOC):
+   - `Rholang/Syntax.v` - AST definitions (500 LOC)
+   - `Rholang/Semantics.v` - Denotational semantics (600 LOC)
+   - `Rholang/Monad.v` - State monad + isolation (200 LOC)
+   - `Rholang/Complexity.v` - Time monad, Big-O (300 LOC)
+   - `Rholang/Lemmas/*.v` - 400-500 reusable lemmas (2500 LOC)
+   - `Rholang/Tactics.v` - Custom proof automation (400 LOC)
+   - `Rholang/RustSemantics.v` - Vec, Rc, amortized analysis (500 LOC)
 
-2. **Isabelle Library** (~2000 LOC):
-   - `Rholang.thy` - Core definitions
-   - `Rholang_Lemmas.thy` - Reusable theorems
-   - `Complexity.thy` - Time monad framework
+2. **Isabelle Library** (~2500 LOC):
+   - `Rholang.thy` - Core definitions (600 LOC)
+   - `Rholang_Lemmas.thy` - Reusable theorems (800 LOC)
+   - `Complexity.thy` - Time monad framework (400 LOC)
+   - `RustSemantics.thy` - Vec growth, Rc sharing (400 LOC)
+   - `Automation.thy` - Sledgehammer integration (300 LOC)
 
 3. **Documentation**:
    - API reference for all definitions
@@ -158,28 +165,42 @@ Qed.  (* 2 lines, 30 seconds *)
 
 ### Effort Estimate
 
-**Total Effort**: 2-4 months, 1 person (formal methods expert)
+**Total Effort**: 4-6 months, 1.5 FTE (1 senior + 0.5 junior formal methods expert)
 
 **Breakdown**:
-- **Month 1**: Core definitions (Syntax, Semantics)
-- **Month 2**: Reusable lemmas (Lists, Sets, State)
-- **Month 3**: Automation (Tactics, Hints)
-- **Month 4**: Validation and documentation
+- **Months 1-2**: Core definitions (Syntax, Semantics, Monad, Complexity)
+- **Months 3-4**: Reusable lemmas library (400-500 lemmas: Lists, Sets, State, Eval, FreeMap, Complexity)
+- **Months 5-6**: Rust semantics (Vec, Rc, amortized analysis) + Automation (Tactics, Hints, Isabelle port)
+- **Throughout**: Testing (QuickChick), validation, documentation (0.5 FTE junior)
 
 **Dependencies**:
 - No dependencies (this is the foundation)
 - Blocks all 11 proof mechanizations
-- Must complete before Phase 1 PoC
+- Must complete before PoC proofs in Phase 1
+- Critical path for entire project
+
+### Team Composition
+
+**Senior Formal Methods Expert** (1 FTE):
+- 3+ years Coq/Isabelle experience
+- Designs core definitions and lemmas
+- Develops custom automation tactics
+
+**Junior Developer** (0.5 FTE):
+- Writes QuickChick property tests
+- Creates documentation and API reference
+- Assists with routine lemma proofs
 
 ### Parallel Work Opportunities
 
-**Can be done in parallel** (if 2 people available):
-- **Person A**: Coq definitions and lemmas
-- **Person B**: Isabelle definitions and lemmas
+**Can be done in parallel**:
+- **Senior**: Coq definitions and lemmas
+- **Junior**: QuickChick tests, documentation, Isabelle port
+- **External review**: Periodic code review by Coq expert (4-8 hours/month)
 
 **Cannot be parallelized**:
-- Automation (requires completed definitions)
-- Validation (requires completed lemmas)
+- Automation (requires completed lemmas)
+- Final validation (requires all components)
 
 ---
 
@@ -746,35 +767,37 @@ Lemma linear_is_O_n : forall f,
 | Component | LOC | Lemmas | Effort | Risk |
 |-----------|-----|--------|--------|------|
 | **Syntax** | 500 | 10 | 2 weeks | Low |
-| **Semantics** | 600 | 50 | 2 weeks | Medium |
-| **State Monad** | 200 | 15 | 1 week | Low |
-| **List Lemmas** | 400 | 35 | 2 weeks | Low |
-| **Set Lemmas** | 300 | 25 | 1 week | Medium |
-| **State Lemmas** | 250 | 20 | 1 week | Low |
-| **FreeMap Lemmas** | 350 | 30 | 2 weeks | Medium |
-| **Eval Lemmas** | 500 | 40 | 3 weeks | High |
-| **Complexity** | 200 | 15 | 1 week | Medium |
-| **Tactics** | 300 | - | 2 weeks | High |
-| **Isabelle Port** | 500 | 50 | 2 weeks | Medium |
-| **Documentation** | - | - | 2 weeks | Low |
-| **TOTAL** | **~4100** | **290** | **16 weeks** | - |
+| **Semantics** | 600 | 60 | 3 weeks | Medium |
+| **State Monad** | 200 | 20 | 1.5 weeks | Low |
+| **Complexity Framework** | 300 | 25 | 2 weeks | Medium |
+| **List Lemmas** | 450 | 50 | 3 weeks | Low |
+| **Set Lemmas** | 400 | 35 | 2 weeks | Medium |
+| **State Lemmas** | 300 | 30 | 2 weeks | Low |
+| **FreeMap Lemmas** | 400 | 40 | 2.5 weeks | Medium |
+| **Eval Lemmas** | 600 | 60 | 4 weeks | High |
+| **Complexity Lemmas** | 300 | 30 | 2 weeks | Medium |
+| **Rust Semantics** | 500 | 40 | 3 weeks | High |
+| **Tactics** | 400 | - | 3 weeks | High |
+| **Isabelle Port** | 600 | 80 | 3 weeks | Medium |
+| **QuickChick Tests** | 400 | - | 2 weeks | Low |
+| **Documentation** | - | - | 3 weeks | Low |
+| **TOTAL** | **~6050** | **480** | **24-26 weeks** | - |
 
 ### By Phase
 
 | Phase | Duration | Cumulative LOC | Cumulative Lemmas |
 |-------|----------|----------------|-------------------|
-| Month 1 (Definitions) | 4 weeks | 1100 | 60 |
-| Month 2 (Lemmas) | 4 weeks | 2800 | 170 |
-| Month 3 (Automation) | 4 weeks | 3600 | 240 |
-| Month 4 (Validation) | 4 weeks | 4100 | 290 |
+| Months 1-2 (Definitions) | 8 weeks | 1600 | 115 |
+| Months 3-4 (Lemmas) | 8 weeks | 4150 | 360 |
+| Months 5-6 (Rust + Automation) | 8-10 weeks | 6050 | 480 |
 
 ### Risk Adjustment
 
-**Optimistic (2.5 months)**: If everything goes perfectly
-**Realistic (3.5 months)**: Expected with some blockers
-**Pessimistic (5 months)**: If major issues discovered
+**Optimistic (4 months)**: If everything goes smoothly and team is highly experienced
+**Realistic (5 months)**: Expected with normal blockers and learning curve
+**Pessimistic (7 months)**: If major issues discovered in Rust semantics or evaluation
 
-**Recommendation**: Plan for **4 months** (realistic + buffer)
+**Recommendation**: Plan for **5-6 months** (realistic + buffer) with 1.5 FTE
 
 ---
 

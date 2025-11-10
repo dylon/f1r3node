@@ -4,25 +4,47 @@
 **Last Updated**: 2025-11-07
 **Coq Version**: 8.17 or later
 **Required Libraries**: Coq.Lists.List, Coq.Arith.Arith, Coq.omega.Omega
-**Status**: Reference Implementation (Not Executable - Planning Phase)
+**Status**: ⚠️ **REFERENCE ONLY - CODE NOT TESTED**
+
+---
+
+## ⚠️ IMPORTANT DISCLAIMERS
+
+**This document contains reference code examples for planning purposes ONLY:**
+
+1. **NOT EXECUTABLE**: This code has NOT been tested in Coq. It is provided as a planning reference to estimate complexity and approach.
+
+2. **INCOMPLETE DEFINITIONS**: Many functions are marked as `Axiom` or use placeholder definitions (e.g., `eval`, `match`, `normalize_atomic`). These would need full implementations.
+
+3. **ADMITTED PROOFS**: Several proofs use `Admitted` instead of `Qed`, indicating incomplete proof sketches.
+
+4. **SYNTAX MAY VARY**: Actual implementation may require different syntax based on library choices (e.g., `ExtLib` vs custom monad definitions).
+
+5. **ESTIMATES ONLY**: Effort estimates (lines of code, proof complexity) are approximations based on similar formalization projects, not measured data.
+
+**Before using this code:**
+- Validate all type definitions against actual Rholang semantics
+- Implement all axiomatized functions
+- Complete all admitted proofs
+- Test thoroughly with QuickChick or similar tools
 
 ---
 
 ## Overview
 
-This document provides complete Coq formalization examples for the high-priority proofs:
+This document provides Coq formalization **sketches** for the high-priority proofs:
 1. Proof 1: Par Flattening (iterative ≡ recursive)
 2. Proof 4: Accumulator Pattern (O(n²) → O(n))
 3. Proof 11: State Isolation (referential transparency)
 
 Each example includes:
-- Complete type definitions
-- All necessary lemmas
-- Main theorems with detailed proofs
+- Type definitions (may need adjustment)
+- Necessary lemmas (with proof sketches)
+- Main theorems (some with `Admitted`)
 - Tactics explanations
 - Estimated proof complexity
 
-**Note**: These are reference implementations for planning purposes. Actual implementation would require additional polish and may vary based on specific Coq library choices.
+**Purpose**: Planning and feasibility assessment, NOT production-ready code.
 
 ---
 

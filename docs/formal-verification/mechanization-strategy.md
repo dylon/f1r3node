@@ -21,8 +21,9 @@ This document outlines a comprehensive strategy for mechanizing the 11 optimizat
 
 **Primary Tool:** Coq with RustBelt library
 **Secondary Tool:** Isabelle/HOL for automation-heavy proofs
-**Timeline:** 11-17 months for high-value subset (5 core proofs)
+**Timeline:** 22-32 months for full mechanization (11 proofs) OR 12-16 months for hybrid approach (3 mechanized + 8 property-tested)
 **Team Size:** 1-2 people with theorem prover expertise
+**Budget:** $315K-445K (full) OR $185K-250K (hybrid)
 
 ### Value Proposition
 
@@ -40,11 +41,11 @@ This document outlines a comprehensive strategy for mechanizing the 11 optimizat
 
 | Proof | Title | Mechanization Potential | Estimated Effort | Recommended Tool |
 |-------|-------|------------------------|------------------|------------------|
-| **Proof 1** | Iterative Par Flattening | **95%** | 2-3 weeks | Coq |
-| **Proof 4** | Accumulator Pattern | **90%** | 3-4 weeks | Coq / Isabelle |
-| **Proof 5** | Match Optimization | **90%** | 2-3 weeks | Coq |
-| **Proof 6** | Lazy sub_pars Iterator | **95%** | 4-6 weeks | Isabelle / Lean |
-| **Proof 11** | State Isolation | **95%** | 3-5 weeks | Coq (monads) |
+| **Proof 1** | Iterative Par Flattening | **95%** | 4-6 weeks | Coq |
+| **Proof 4** | Accumulator Pattern | **90%** | 8-12 weeks | Coq / Isabelle |
+| **Proof 5** | Match Optimization | **90%** | 3-5 weeks | Coq |
+| **Proof 6** | Lazy sub_pars Iterator | **95%** | 6-8 weeks | Isabelle / Lean |
+| **Proof 11** | State Isolation | **95%** | 6-10 weeks | Coq (monads) |
 
 **Rationale:** Pure mathematical reasoning (structural induction, fold laws, bijections, monad semantics). Minimal dependence on Rust-specific or empirical properties.
 
@@ -163,90 +164,115 @@ tar xzf Isabelle2023_Linux.tar.gz
 
 ## 3. Phased Implementation Approach
 
-### 3.1 Phase 1: Proof-of-Concept (3-4 Months)
+### 3.1 Phase 1: Foundation + Proof-of-Concept (6-8 Months)
 
-**Goal:** Validate mechanization feasibility with 2 high-value proofs
+**Goal:** Build foundational library and validate mechanization feasibility with 3 high-value proofs
 
 **Deliverables:**
-1. Formalized core definitions (ProcessTree, Par, State, FreeMap)
-2. Proof 1 (Par Flattening) mechanized in Coq
-3. Proof 6 (Lazy sub_pars) mechanized in Isabelle/HOL
-4. Lessons learned document
-5. Go/no-go decision for Phase 2
+1. **Foundational library** (4-6 months):
+   - Core definitions (ProcessTree, Par, State, FreeMap, Complexity framework)
+   - 400-500 reusable lemmas (lists, sets, state, evaluation, complexity)
+   - Custom automation tactics (Coq) and sledgehammer integration (Isabelle)
+   - Amortized complexity analysis (Vec growth, potential functions)
+   - Rust-specific semantics (Rc, clone, Vec::extend)
+2. **Proof 1** (Par Flattening) mechanized in Coq - 4-6 weeks
+3. **Proof 6** (Lazy sub_pars) mechanized in Isabelle/HOL - 6-8 weeks
+4. **Proof 11** (State Isolation) mechanized in Coq - 6-10 weeks
+5. Lessons learned document and go/no-go decision for Phase 2
 
 **Timeline:**
-- **Month 1:** Set up Coq/Isabelle environments, formalize ProcessTree, prove fold decomposition lemma
-- **Month 2:** Complete Proof 1 in Coq (Par flattening equivalence)
-- **Month 3:** Complete Proof 6 in Isabelle (bitmask bijection, O(2^n)→O(1) memory)
-- **Month 4:** Compare toolchains, document findings, present to stakeholders
+- **Months 1-2:** Core definitions (syntax, semantics, state monad) - 1.5 FTE
+- **Months 3-4:** Reusable lemmas library (lists, sets, state, eval, complexity) - 1.5 FTE
+- **Months 5-6:** Automation (custom tactics, Isabelle port) + Begin Proof 1 - 1.5 FTE
+- **Months 6-7:** Complete Proofs 1, 6, 11 in parallel - 1.5 FTE
+- **Month 8:** Validation, documentation, stakeholder presentation - 1 FTE
 
 **Success Criteria:**
-- ✅ Both proofs mechanized and checked
-- ✅ Foundational lemmas reusable for other proofs
-- ✅ Team confident in Coq/Isabelle proficiency
-- ✅ Estimated ROI > 70% for Phase 2
+- ✅ Foundational library complete (400-500 lemmas proven)
+- ✅ All 3 PoC proofs mechanized and validated against paper versions
+- ✅ Automation reduces proof length by 50%+ (measured)
+- ✅ Team confident in proceeding to Phase 2
+- ✅ Positive ROI projection for Phase 2
 
 **Resources:**
-- 1 person with Coq experience (PhD-level or equivalent)
+- 1 senior formal methods expert with 3+ years Coq/Isabelle experience
+- 0.5 junior developer for library documentation and testing (QuickChick)
+- 4-8 hours/month external review by Coq/Isabelle expert
 - Access to formal methods literature (ACM Digital Library, SpringerLink)
-- 4 hours/week mentorship from Coq expert (optional but recommended)
 
-**Budget:** ~$50K-$70K (1 FTE for 4 months at $150K-$210K annual salary)
+**Budget:** ~$90K-$120K (1.5 FTE for 6-8 months: $165K annual × 1.5 × 0.5 years = $123K, reduced for part-time junior)
 
-### 3.2 Phase 2: Core Proofs (6-9 Months)
+### 3.2 Phase 2: Remaining Core Proofs (12-18 Months)
 
-**Goal:** Mechanize all high-priority proofs and build reusable library
+**Goal:** Mechanize remaining high-priority proofs (Proofs 2, 3, 4, 5, 7, 8, 9, 10)
 
 **Scope:**
-- Proofs 1, 4, 5, 6, 11 (5 proofs total)
-- Reusable Coq library (fold lemmas, complexity bounds, monad state)
-- Documentation for future proof developers
+- 8 remaining proofs (all except 1, 6, 11 completed in Phase 1)
+- Proof 4 requires most effort (8-12 weeks) due to complexity analysis
+- Proofs 2, 3, 7 require Rust semantics (RustBelt integration)
+- Proofs 8, 9, 10 require persistent data structure libraries
 
 **Timeline:**
-- **Months 1-2:** Proof 4 (Accumulator Pattern) - O(n²)→O(n) complexity
-- **Months 2-3:** Proof 5 (Match Optimization) - Double-reversal cancellation
-- **Months 4-5:** Proof 11 (State Isolation) - Monad formalization
-- **Months 6-7:** Proofs 8-10 (Persistent Data Structures) - Optional stretch goal
-- **Months 8-9:** Library refactoring, documentation, peer review preparation
+- **Months 1-3:** Proof 4 (Accumulator Pattern) - O(n²)→O(n) with hidden prepending
+- **Months 4-5:** Proof 5 (Match Optimization) - Double-reversal cancellation
+- **Months 6-8:** Proof 2 (Rc BoundMapChain) + Proof 3 (Pre-allocation) - Rust semantics
+- **Months 9-11:** Proofs 8, 9, 10 (Persistent Data Structures) - im::HashMap formalization
+- **Months 12-14:** Proof 7 (Clone Reduction) - Ownership/borrowing (highest Rust complexity)
+- **Months 15-18:** Library refactoring, documentation, peer review preparation, paper submission
 
 **Deliverables:**
-1. 5 mechanized proofs with Coq/Isabelle source
-2. Reusable library (20-30 foundational lemmas)
-3. Developer documentation (tutorial for adding new proofs)
-4. Peer-reviewed paper submission (POPL, ICFP, or CPP conference)
-5. Public GitHub repository with proofs
+1. 8 additional mechanized proofs (total 11 proofs mechanized)
+2. Complete Rholang optimization verification library
+3. RustBelt integration for Rust-specific semantics
+4. Developer documentation and tutorial
+5. Peer-reviewed paper submission (POPL, ICFP, or CPP conference)
+6. Public GitHub repository with all proofs
 
 **Resources:**
-- 1-2 people with theorem prover expertise
-- Optional: Collaboration with academic formal methods group
+- 1-2 senior people with theorem prover expertise
+- Collaboration with RustBelt team (for Proofs 2, 3, 7)
+- Optional: Academic formal methods group partnership
 - Optional: Student intern for library documentation
 
-**Budget:** ~$75K-$135K (1-1.5 FTE for 9 months)
+**Budget:** ~$150K-$225K (1-1.5 FTE for 12-18 months: $165K annual × 1.25 FTE × 1.25 years = $258K, discounted for part-time allocation)
 
-### 3.3 Phase 3: Rust Integration (12-18 Months, Optional)
+### 3.3 Phase 3: Rust Code Extraction and Integration (18-24 Months, Optional)
 
-**Goal:** Connect formal models to actual Rust implementation code
+**Goal:** Connect formal Coq proofs to actual Rust implementation code through extraction or refinement
 
-**Approach:**
-1. Use Creusot or Prusti to extract verification conditions from Rust code
-2. Prove refinement between abstract Coq model and Rust implementation
-3. Establish continuous verification pipeline (CI integration)
+**Approach (Two Options):**
+
+**Option A: Coq → Rust Extraction Plugin** (Preferred if extraction needed)
+1. Develop custom Coq extraction plugin targeting Rust (6-9 months)
+2. Extract verified functional Coq code to idiomatic Rust
+3. Validate extracted code matches performance of hand-written Rust
+
+**Option B: Refinement Verification** (Preferred if keeping existing Rust)
+1. Use Creusot or Prusti to verify existing Rust implementations
+2. Prove refinement between abstract Coq model and Rust implementation in RustBelt/Iris
+3. Establish bidirectional correspondence (Coq spec ↔ Rust code)
 
 **Tools:**
-- Creusot: Rust → Why3 → Multiple SMT solvers
-- Prusti: Rust → Viper → Z3
-- RustBelt: Rust semantics in Coq/Iris
+- Custom Coq extraction plugin for Rust (Option A) - 6-9 month development
+- Creusot: Rust → Why3 → SMT solvers (Option B)
+- Prusti: Rust → Viper → Z3 (Option B)
+- RustBelt/Iris: Rust semantics in Coq for refinement proofs
 
 **Deliverables:**
-1. Verified Rust implementations for 5 core optimizations
-2. CI pipeline that checks proofs on every commit
-3. Certification documentation (for compliance/auditing)
+1. Either: Extracted verified Rust code OR Verified existing Rust implementations
+2. Refinement proofs connecting Coq models to Rust semantics
+3. CI pipeline that checks proofs/extraction on every commit
+4. Certification documentation (for compliance/auditing)
+5. Case study paper on Coq-to-Rust workflow
 
 **Resources:**
-- 2-3 people (1 Rust expert, 1-2 verification experts)
+- 2-3 people (1 Rust expert, 1 Coq expert, 1 RustBelt/Iris expert)
 - Collaboration with RustBelt/Prusti/Creusot developers
+- Possible collaboration with Rust language team
 
-**Budget:** ~$300K-$400K (2-3 FTE for 15 months)
+**Budget:** ~$350K-$500K (2.5 FTE for 18-24 months: includes custom extraction plugin development)
+
+**Note:** This phase has significantly higher complexity than Phases 1-2. Coq's existing extraction targets OCaml/Haskell, not Rust. Custom extraction requires deep compiler knowledge. Consider carefully whether extraction is needed or if Phase 2's mathematical proofs suffice.
 
 **Recommendation:** Only proceed with Phase 3 if targeting certified blockchain (e.g., regulatory compliance, high-assurance systems).
 
@@ -258,11 +284,17 @@ tar xzf Isabelle2023_Linux.tar.gz
 
 | Phase | Activity | Duration | People | Cost Estimate |
 |-------|----------|----------|--------|---------------|
-| **Foundational** | Core definitions, lemmas | 2-4 months | 1 | $25K-$35K |
-| **Phase 1 (PoC)** | 2 proofs mechanized | 3-4 months | 1 | $50K-$70K |
-| **Phase 2 (Core)** | 5 proofs + library | 6-9 months | 1-2 | $75K-$135K |
-| **Phase 3 (Rust)** | Code-level verification | 12-18 months | 2-3 | $300K-$400K |
-| **Total (Phase 1+2)** | High-value subset | 11-17 months | 1-2 | $150K-$240K |
+| **Phase 1 (Foundation + PoC)** | Core definitions (400-500 lemmas) + 3 proofs (1, 6, 11) | 6-8 months | 1.5 | $90K-$120K |
+| **Phase 2 (Core)** | 8 remaining proofs (2, 3, 4, 5, 7, 8, 9, 10) + RustBelt integration | 12-18 months | 1-1.5 | $150K-$225K |
+| **Phase 3 (Rust)** | Code extraction OR refinement verification | 18-24 months | 2-3 | $350K-$500K |
+| **Total (Phase 1+2)** | All 11 proofs mechanized | 18-26 months | 1-1.5 | $240K-$345K |
+| **Total (All phases)** | Full certification-grade | 36-50 months | 2-3 | $590K-$845K |
+
+**Hybrid Approach Alternative:**
+| **Hybrid Phase 1** | Foundation + 3 critical proofs mechanized | 6-8 months | 1.5 | $90K-$120K |
+| **Hybrid Phase 2** | Property testing for 8 remaining proofs | 2 months | 1 | $20K-$30K |
+| **Hybrid Phase 3** | Differential testing + integration | 1-2 months | 1 | $15K-$20K |
+| **Hybrid Total** | 3 mechanized + 8 tested | 9-12 months | 1-1.5 | $125K-$170K |
 
 ### 4.2 Return on Investment (ROI)
 
@@ -271,24 +303,25 @@ tar xzf Isabelle2023_Linux.tar.gz
 | Investment | Mechanized Proofs | Confidence Level | Notes |
 |------------|-------------------|------------------|-------|
 | **No mechanization** | 0 | 70% | Informal proofs + empirical validation |
-| **Phase 1 (PoC)** | 2 | 80% | Validates feasibility, builds expertise |
-| **Phase 2 (Core)** | 5 | 90% | Covers most critical optimizations |
-| **Phase 3 (Rust)** | 5 (code-level) | 98% | Full certification-grade verification |
+| **Hybrid approach** | 3 + 8 tested | 85-90% | Critical proofs mechanized, rest property-tested |
+| **Phase 1+2 (Full)** | 11 | 98% | All proofs mechanized with foundational library |
+| **Phase 1+2+3 (Certified)** | 11 (code-level) | 99.9% | Full certification-grade with Rust extraction/refinement |
 
 **Value by Domain:**
 
 | Application Domain | Recommended Investment | Rationale |
 |--------------------|------------------------|-----------|
-| **Research blockchain** | Phase 1 only | Validate ideas, publish papers |
-| **Production blockchain (general)** | Phase 1 + 2 | High confidence, reasonable cost |
-| **High-assurance blockchain** | Phase 1 + 2 + 3 | Regulatory compliance, certification |
-| **Academic research** | Phase 1 | Publication value, proof techniques |
+| **MVP/Prototype blockchain** | Hybrid only | Fast validation, adequate confidence |
+| **Production blockchain (standard)** | Hybrid or Phase 1+2 | High confidence, cost-effective |
+| **High-assurance blockchain** | Phase 1+2+3 | Regulatory compliance, certification |
+| **Academic research** | Phase 1 only | Publication value, proof techniques |
 
 **Cost-Benefit Threshold:**
 
-- **Break-even point:** If a single critical bug (e.g., Proof 11 state contamination) causes >$150K in losses/remediation, Phase 1+2 is cost-effective
-- **Blockchain context:** Consensus bugs can cause multi-million dollar losses → High ROI
-- **Reusability:** Formalization infrastructure benefits future optimizations → Amortized cost
+- **Hybrid break-even:** If a critical bug causes >$125K in losses, hybrid approach is cost-effective
+- **Full mechanization break-even:** If a consensus bug causes >$240K in losses, full Phase 1+2 is cost-effective
+- **Blockchain context:** Consensus bugs can cause multi-million dollar losses (e.g., DAO hack: $60M) → Very high ROI
+- **Reusability:** Formalization infrastructure benefits future optimizations → Amortized cost reduces over time
 
 ### 4.3 Risk-Adjusted Value
 

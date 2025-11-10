@@ -2,7 +2,31 @@
 
 **Document Version**: 1.0
 **Last Updated**: 2025-11-07
-**Status**: Planning Phase - Reference Implementation Examples
+**Status**: ⚠️ **REFERENCE ONLY - CODE NOT TESTED** - Planning Phase Examples
+
+---
+
+## ⚠️ IMPORTANT DISCLAIMERS
+
+**This document contains reference code examples for planning purposes ONLY:**
+
+1. **NOT EXECUTABLE**: This Isabelle code has NOT been tested in Isabelle 2023. It is provided as a planning reference to estimate complexity and feasibility.
+
+2. **INCOMPLETE DEFINITIONS**: Many functions use `consts` (uninterpreted) or placeholder axiomatizations (e.g., `eval`, `match`). These would need full formalization.
+
+3. **SLEDGEHAMMER SUCCESS NOT GUARANTEED**: Examples show `sledgehammer` finding proofs, but actual success rates depend on complexity. Timeouts and failures are common and not reflected in examples.
+
+4. **SYNTAX MAY VARY**: Actual implementation may require different syntax based on AFP (Archive of Formal Proofs) library availability and versioning.
+
+5. **PROOF LENGTH COMPARISONS MISLEADING**: Isabelle proofs appear shorter because `sledgehammer` hides complexity. Actual development time includes sledgehammer computation (60s timeout × many goals = hours).
+
+**Before using this code:**
+- Test all theory files in Isabelle 2023+ with `isabelle build`
+- Implement all axiomatized functions with proper semantics
+- Verify sledgehammer actually finds proofs (may require manual intervention)
+- Account for sledgehammer computation time in estimates
+
+---
 
 ## Table of Contents
 
