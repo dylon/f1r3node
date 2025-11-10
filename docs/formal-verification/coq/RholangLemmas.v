@@ -407,26 +407,24 @@ Proof.
   destruct v as [cap len].
   simpl in *.
 
-  (* Proof strategy that should work:
-     1. Normalize len + (len + 0) to 2 * len
-     2. Normalize len + 1 + (len + 1 + 0) to 2 * len + 2
-     3. Use H_cap_inv: cap <= 2*len to show cap + (2*len - cap) = 2*len
-     4. Show 2*len + 2 - cap = (2*len - cap) + 2
-     5. Show 1 + ((2*len - cap) + 2) - (2*len - cap) = 1 + 2 = 3
+  replace (len + (len + 0)) with (2 * len) in * by lia.
 
-     The difficulty is that nat subtraction in Coq is truncated, making
-     standard rewrite tactics fail to match patterns. Even `lia` cannot
-     solve this after the rewrites, likely due to how the goal is structured
-     after `simpl` with record field accessors.
+  (* Use a helper assertion to work around the match *)
+  assert (H_goal: 1 + (len + 1 + (len + 1 + 0) - cap) - (2 * len - cap) = 3).
+  {
+    replace (len + 1 + (len + 1 + 0)) with (2 * len + 2) by lia.
+    (* Now we need: 1 + (2*len + 2 - cap) - (2*len - cap) = 3 *)
+    (* Since cap <= 2*len, both subtractions are well-defined *)
+    (* And we can show: (2*len + 2 - cap) = (2*len - cap) + 2 *)
+    assert (Hkey: 2 * len + 2 - cap = 2 * len - cap + 2 \/ 2 * len < cap).
+    { destruct (le_lt_dec cap (2 * len)); [left | right]; lia. }
+    destruct Hkey as [Hkey | Hcontra].
+    - rewrite Hkey. lia.
+    - lia. (* Contradicts H_cap_inv *)
+  }
 
-     A complete proof would require either:
-     - Custom nat subtraction lemmas beyond the standard library
-     - Converting to Z (integers) where subtraction behaves normally
-     - Using a different potential function that avoids subtraction
-  *)
-
-  admit. (* Requires advanced nat subtraction reasoning or Z arithmetic *)
-Admitted.
+  exact H_goal.
+Qed.
 
 (** ** Set Operations (for Free/Bound Variable Analysis) *)
 
