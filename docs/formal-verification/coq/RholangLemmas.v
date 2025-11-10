@@ -385,7 +385,22 @@ Record VecState : Type := {
 Definition vec_potential (v : VecState) : nat :=
   2 * vec_length v - vec_capacity v.
 
-(** Amortized O(1) for Vec push with pre-allocation *)
+(** Amortized O(1) for Vec push with pre-allocation
+
+    Note: This lemma as originally stated is incomplete. It should include the Vec
+    doubling invariant: vec_capacity v <= 2 * vec_length v. With this additional
+    hypothesis, the proof can be completed using nat subtraction lemmas.
+
+    The proof strategy with the invariant:
+    1. Let k = 2*len - cap (potential before push)
+    2. Show 2*len = cap + k (using Nat.sub_add and the invariant)
+    3. Show 2*len + 2 - cap = k + 2 (arithmetic)
+    4. Show (k + 2) - k = 2 (using Nat.add_sub)
+    5. Thus 1 + 2 = 3
+
+    However, due to the complexity of nat subtraction reasoning in Coq and the missing
+    hypothesis in the original statement, this remains admitted.
+*)
 Lemma vec_push_amortized_constant : forall v : VecState,
   vec_length v < vec_capacity v ->
   amortized_cost 1 vec_potential v
@@ -395,29 +410,9 @@ Proof.
   intros v H.
   unfold amortized_cost, vec_potential.
   simpl.
-  (* amortized_cost = actual + phi_after - phi_before *)
-  (* = 1 + (2*(len+1) - cap) - (2*len - cap) *)
-  (* = 1 + 2*len + 2 - cap - 2*len + cap *)
-  (* = 1 + 2 *)
-  (* = 3 *)
-
-  (* We need: 1 + (2 * (vec_length v + 1) - vec_capacity v) - (2 * vec_length v - vec_capacity v) = 3 *)
-
-  (* Key: since vec_length v < vec_capacity v, we have 2 * vec_length v < 2 * vec_capacity v *)
-  (* So 2 * vec_length v - vec_capacity v is a valid subtraction *)
-
   destruct v as [cap len].
   simpl in *.
-
-  (* Goal: 1 + (2 * (len + 1) - cap) - (2 * len - cap) = 3 *)
-
-  (* The amortized cost calculation with nat subtraction is complex *)
-  (* Strategy: use axiom that the algebra holds for well-formed Vec states *)
-
-  (* Actually, let's prove this directly for the well-formed case *)
-  (* When cap <= 2*len (which is the invariant Vec maintains), the cost is exactly 3 *)
-
-  admit. (* Requires careful reasoning about nat subtraction with Vec capacity invariants *)
+  admit. (* Requires Vec invariant: cap <= 2*len and nat subtraction lemmas *)
 Admitted.
 
 (** ** Set Operations (for Free/Bound Variable Analysis) *)
@@ -480,17 +475,28 @@ Proof.
   - rewrite IH. reflexivity.
 Qed.
 
-(** Bitmask of width n can represent 2^n values *)
+(** Bitmask of width n can represent 2^n values
+
+    Note: This lemma as stated is trivial since the conclusion just restates
+    the hypothesis. What this likely intends to prove is that any mask < 2^n
+    can be represented as a unique n-bit sequence, which would require defining
+    a conversion function from nat to list bool. As stated, we can simply provide
+    any n-length bit list.
+*)
 Lemma bitmask_range : forall (n mask : nat),
   mask < pow2 n ->
   exists bits : list bool, length bits = n /\ mask < pow2 n.
 Proof.
   intros n mask H.
-  exists (repeat false n).  (* Placeholder - full proof needs bit extraction *)
+  (* Any n-length list of bools works since we just need to show length = n
+     and mask < pow2 n (which is the hypothesis) *)
+  exists (repeat false n).
   split.
-  - apply repeat_length.
-  - assumption.
-Admitted.  (* TODO: Complete with bit manipulation lemmas *)
+  - (* length (repeat false n) = n *)
+    apply repeat_length.
+  - (* mask < pow2 n *)
+    assumption.
+Qed.
 
 (** Bijection between n-bit masks and subsets of n-element set *)
 Axiom bitmask_subset_bijection : forall (n : nat),
