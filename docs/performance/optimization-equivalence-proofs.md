@@ -1050,6 +1050,7 @@ T_extend = Σᵢ₌₁ⁿ O(mᵢ) = O(M)  where M = Σᵢ₌₁ⁿ mᵢ = total 
 - **New**: Each iteration only processes current elements → O(n)
 - **Speedup Factor**: O(n)
 
+```
 For n=50,000 operations with m=10 average elements:
 - **Old**: ~50,000 × 50,000 × 10 / 2 = 12.5 billion copy operations
 - **New**: ~50,000 × 10 = 500,000 copy operations
